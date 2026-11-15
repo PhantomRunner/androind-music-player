@@ -23,7 +23,9 @@ fun SelectionToolbar(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(source) { viewModel.source(source) }
-    DisposableEffect(source.context) { onDispose { if (clearOnDispose) viewModel.cancel() } }
+    DisposableEffect(source.context) {
+        onDispose { if (clearOnDispose) viewModel.leave(source.context) }
+    }
     BackHandler(state.active) { viewModel.cancel() }
     var choosing by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }

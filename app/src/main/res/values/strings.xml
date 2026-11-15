@@ -172,7 +172,9 @@
     <string name="delete_playlist_description">Delete “%1$s” and its entries? Your audio files and favourites stay on your device.</string>
     <string name="playlist_unavailable">This playlist is unavailable or has been deleted.</string>
     <string name="add_tracks">Add tracks</string>
-    <string name="add_tracks_description">Open your library, tap a track’s options and choose Add to playlist.</string>
+    <string name="add_tracks_description">Tap Add tracks, select songs from your library and confirm to add them here.</string>
+    <string name="search_tracks_to_add">Search tracks to add</string>
+    <string name="add_selected_tracks">Add selected (%1$d)</string>
     <string name="empty_playlist">Make room for your favourites</string>
     <string name="empty_playlists_title">A collection for every mood</string>
     <string name="empty_playlists_description">Create a playlist, then add tracks from your library or search.</string>

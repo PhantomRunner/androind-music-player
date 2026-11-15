@@ -97,7 +97,13 @@ Database v2 adds `favourites`, `playlists` and `playlist_entries` to the catalog
 
 Run the commands above for build, unit, lint and device verification. Unit tests cover scan completion/failure/cancellation/overlap, metadata fallback, escaped search and playlist-name validation. Instrumented tests cover actual MediaStore audio, Room imports/identity/search/paging/migration, persistent collections, concurrent appends, duplicate/reorder/remove behavior, real playback/background/system controls/reconnection and UI navigation/editing. Recovery tests delete only their own generated audio fixtures to verify missing-file skipping and bounded failure under repeat. Run instrumented tests on an emulator or a device reserved for testing: API 29+ media tests create labelled silent WAVs, grant the test app audio access and remove only their own fixture URIs.
 
-Validated on **2026-11-15**, using JDK 17, SDK 36 and a temporary read-only API 37 phone AVD:
+Playlist-picker fix validated on **2026-11-16** with JDK 17 and the explicitly selected read-only API 37 `Medium_Phone` AVD: debug assembly succeeded, 29 JVM tests and 4 related connected UI tests passed, and lint reported 0 errors and 25 warnings. The new regression covers creating a playlist, opening the picker, cancelling without changes, selecting 65 filtered tracks across unloaded pages, preserving selection during Activity recreation and persisting their order. Manually created a labelled test playlist and visually checked the new picker with denied permission/empty catalogue at normal and 200% system font. This connected run was scoped to the three classes below; it was not a new run of every instrumented test.
+
+```sh
+ANDROID_SERIAL=emulator-5586 ./gradlew --offline :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.violet.music.PlaylistTrackPickerUiTest,dev.violet.music.CollectionUiTest,dev.violet.music.LibraryExperienceUiTest --continue --console=plain
+```
+
+Original MVP validation on **2026-11-15**, using JDK 17, SDK 36 and a temporary read-only API 37 phone AVD:
 
 ```sh
 ANDROID_SERIAL=emulator-5584 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:connectedDebugAndroidTest --continue --console=plain
@@ -137,6 +143,8 @@ The service owns the only ExoPlayer. UI controllers connect to that session; ope
 The built APK permission audit confirms no `INTERNET` or `ACCESS_NETWORK_STATE` permission; Media3's transitive connectivity permission is removed for this local-only app. Lint retains pinned-dependency update notices and a generic exported-service warning: the Media3 session service is intentionally exported for system controllers, and `onGetSession` accepts only the app itself or trusted controllers. Incoming media URIs are resolved again from catalogue UUIDs.
 
 Playlists/favourites are paged, with 1–120 character names, duplicate-safe entry IDs, transactional appends/reordering/removal and explicit playlist-deletion confirmation. Playlist playback captures entry order and the selected entry, including duplicate track IDs. Edits do not rewrite an already playing queue; play again to capture the edited ordering. A–Z/recently-added sorting applies to catalogue/favourite playback. Collection errors preserve existing data and surface in the UI.
+
+To fill a new or existing custom playlist, open it and tap **Add tracks**. A dedicated screen searches the catalogue and lets you check individual songs or select the complete filtered result, including unloaded pages. **Add selected** appends directly to that playlist and returns to its editor after the bounded writes finish. Cancel leaves the playlist unchanged before confirmation; cancelling an in-progress operation keeps completed batches. Adding tracks does not start or replace playback.
 
 Intentional MVP limits: queue/position are not restored after full process death/reboot; there is no automatic playback restart. Full Unicode case folding, incremental MediaStore generation synchronization, listening history and production publishing are deferred. Server APIs, authentication and sync remain outside this offline MVP; `serverId` is only a nullable storage field. Bluetooth hardware, manufacturer-specific power management and removable-storage behavior still need physical-device checks.
 

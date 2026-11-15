@@ -105,6 +105,15 @@ constructor(private val repository: SelectionRepository, private val playback: P
             )
     }
 
+    /** A departing destination must not clear selection already owned by the next screen. */
+    fun leave(context: String) {
+        if (source?.context == context) {
+            cancel()
+            watch?.cancel()
+            source = null
+        }
+    }
+
     fun dismissResult() {
         state.value = state.value.copy(processed = 0, skipped = 0, error = false)
     }
@@ -143,7 +152,7 @@ constructor(private val repository: SelectionRepository, private val playback: P
             }
     }
 
-    fun run(action: BulkAction, playlistId: String? = null) {
+    fun run(action: BulkAction, playlistId: String? = null, onComplete: (() -> Unit)? = null) {
         if (
             state.value.running ||
                 state.value.loading ||
@@ -186,9 +195,13 @@ constructor(private val repository: SelectionRepository, private val playback: P
                             )
                         yield()
                     }
-                    if (generation == request)
+                    if (generation == request) {
                         state.value =
                             state.value.copy(running = false, active = false, selected = emptyMap())
+                        withContext(Dispatchers.Main.immediate) {
+                            if (generation == request) onComplete?.invoke()
+                        }
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {

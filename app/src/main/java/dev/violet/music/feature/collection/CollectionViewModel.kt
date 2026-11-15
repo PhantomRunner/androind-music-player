@@ -1,5 +1,6 @@
 package dev.violet.music.feature.collection
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.cachedIn
@@ -10,14 +11,19 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class PlaylistUiState(val loading: Boolean = true, val playlist: PlaylistSummary? = null)
 
 @HiltViewModel
+@OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CollectionViewModel
 @Inject
 constructor(
@@ -25,12 +31,28 @@ constructor(
     private val library: dev.violet.music.core.data.LibraryRepository,
     private val artists: dev.violet.music.core.data.ArtistRepository,
     private val covers: dev.violet.music.core.data.PlaylistCoverRepository,
+    private val saved: SavedStateHandle,
 ) : ViewModel() {
     val playlists = repository.playlists().cachedIn(viewModelScope)
     private val mutableError = MutableStateFlow(false)
     val error = mutableError.asStateFlow()
     private val mutableCoverBusy = MutableStateFlow(false)
     val coverBusy = mutableCoverBusy.asStateFlow()
+    val addTracksQuery = saved.getStateFlow("playlist.add.query", "")
+    val addTracksFilter =
+        addTracksQuery
+            .debounce(300)
+            .map { dev.violet.music.core.model.TrackFilter(query = it) }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                dev.violet.music.core.model.TrackFilter(query = addTracksQuery.value),
+            )
+    val addTrackCandidates = addTracksFilter.flatMapLatest(library::tracks).cachedIn(viewModelScope)
+
+    fun updateAddTracksQuery(value: String) {
+        saved["playlist.add.query"] = value
+    }
 
     fun applyCover(id: String, uri: android.net.Uri) = edit {
         mutableCoverBusy.value = true

@@ -235,9 +235,9 @@ fun AppNavigation(
                 onDelete = { collections.delete(id) { nav.popBackStack() } },
                 onMove = collections::move,
                 onRemove = collections::remove,
-                onLibrary = {
-                    library.category(LibraryCategory.TRACKS)
-                    nav.navigate("library")
+                onAddTracks = {
+                    collections.updateAddTracksQuery("")
+                    nav.navigate("playlist/$id/add-tracks") { launchSingleTop = true }
                 },
                 onApplyCover = { collections.applyCover(id, it) },
                 onRemoveCover = { collections.removeCover(id) },
@@ -247,6 +247,32 @@ fun AppNavigation(
                 playlistId = id,
                 onEntryMenu = { onPlaylistTrackMenu(it.track, id, it.id) },
             )
+        }
+        composable(
+            "playlist/{id}/add-tracks",
+            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+        ) { entry ->
+            val id = requireNotNull(entry.arguments?.getString("id"))
+            val header by
+                remember(id) { collections.playlist(id) }
+                    .collectAsStateWithLifecycle(PlaylistUiState())
+            val query by collections.addTracksQuery.collectAsStateWithLifecycle()
+            val filter by collections.addTracksFilter.collectAsStateWithLifecycle()
+            PlaylistTrackPickerScreen(
+                id,
+                header,
+                state,
+                query,
+                filter,
+                collections.addTrackCandidates,
+                selection,
+                collections::updateAddTracksQuery,
+                onPermission,
+                onAndroidSettings,
+                library::refresh,
+            ) {
+                nav.popBackStack()
+            }
         }
         composable(
             "now-playing",

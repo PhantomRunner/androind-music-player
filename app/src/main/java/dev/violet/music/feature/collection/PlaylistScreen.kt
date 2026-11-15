@@ -53,7 +53,7 @@ fun PlaylistScreen(
     onDelete: () -> Unit,
     onMove: (String, Int) -> Unit,
     onRemove: (String) -> Unit,
-    onLibrary: () -> Unit,
+    onAddTracks: () -> Unit,
     onApplyCover: (android.net.Uri) -> Unit = {},
     onRemoveCover: () -> Unit = {},
     coverBusy: Boolean = false,
@@ -150,7 +150,7 @@ fun PlaylistScreen(
                     }
                 }
             }
-            item { TextButton(onClick = onLibrary) { Text(stringResource(R.string.add_tracks)) } }
+            item { TextButton(onClick = onAddTracks) { Text(stringResource(R.string.add_tracks)) } }
             if (items.itemCount == 0 && items.loadState.refresh !is LoadState.Loading)
                 item {
                     MessageCard(
