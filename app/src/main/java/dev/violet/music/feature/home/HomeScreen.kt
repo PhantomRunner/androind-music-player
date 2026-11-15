@@ -4,17 +4,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import dev.violet.music.R
-import dev.violet.music.core.model.*
+import dev.violet.music.core.model.Track
 import dev.violet.music.core.ui.*
 import dev.violet.music.core.ui.theme.VioletLayout
 import dev.violet.music.feature.library.LibraryUiState
 
-data class HomeTrackSection(val title: Int, val kind: String, val tracks: List<Track>)
+private data class HomeTrackSection(val title: Int, val kind: String, val tracks: List<Track>)
 
 @Composable
 fun HomeScreen(
@@ -29,90 +31,115 @@ fun HomeScreen(
     onMenu: (Track, String) -> Unit,
 ) {
     LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(VioletLayout.contentPadding),
-        verticalArrangement = Arrangement.spacedBy(VioletLayout.sectionSpacing),
+        verticalArrangement = Arrangement.spacedBy(VioletLayout.itemSpacing),
     ) {
-        item("title") {
-            Text(stringResource(R.string.home), style = MaterialTheme.typography.headlineLarge)
-        }
+        item("shortcuts") { HomeShortcuts(onCollection) }
         libraryNotices(catalogue, onPermission, onSettings, onRefresh)
         when {
-            state.loading -> item { LoadingState() }
-            state.error ->
-                item {
-                    MessageCard(stringResource(R.string.home), stringResource(R.string.load_error))
-                }
+            state.loading -> item("loading") { LoadingState() }
+            state.error -> item("error") {
+                MessageCard(stringResource(R.string.home), stringResource(R.string.load_error))
+            }
             else -> {
-                listOf(
-                        HomeTrackSection(R.string.quick_picks, "quick", state.quickPicks),
-                        HomeTrackSection(R.string.recently_played, "recent", state.recentlyPlayed),
-                        HomeTrackSection(R.string.recently_added, "added", state.recentlyAdded),
-                    )
-                    .forEach { section ->
-                        item("${section.kind}-heading") {
-                            Column {
-                                SectionHeader(stringResource(section.title)) {
-                                    onCollection(section.kind)
-                                }
-                                if (section.kind == "quick")
-                                    Text(
-                                        stringResource(state.period.label()),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                val sections = listOf(
+                    HomeTrackSection(R.string.recently_played, "recent", state.recentlyPlayed),
+                    HomeTrackSection(R.string.quick_picks, "quick", state.quickPicks),
+                    HomeTrackSection(R.string.recently_added, "added", state.recentlyAdded),
+                )
+                for (section in sections.filter { it.tracks.isNotEmpty() }) {
+                    item(section.kind) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionHeader(stringResource(section.title)) {
+                                onCollection(section.kind)
                             }
-                        }
-                        item("${section.kind}-tracks") {
-                            if (section.tracks.isEmpty())
-                                MessageCard(
-                                    stringResource(
-                                        if (section.kind == "added") R.string.empty_title
-                                        else R.string.history_empty
-                                    ),
-                                    stringResource(
-                                        if (section.kind == "added") R.string.empty_description
-                                        else R.string.history_empty_description
-                                    ),
+                            if (section.kind == "quick") {
+                                Text(
+                                    stringResource(state.period.label()),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            else
-                                LazyRow(
-                                    horizontalArrangement =
-                                        Arrangement.spacedBy(VioletLayout.itemSpacing)
-                                ) {
-                                    items(section.tracks, key = { it.id }) { track ->
-                                        Box(Modifier.width(VioletLayout.carouselWidth)) {
-                                            TrackCard(
-                                                track,
-                                                { onMenu(track, section.kind) },
-                                                { onPlay(track, section.kind) },
-                                            )
-                                        }
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(section.tracks, key = { it.id }) { track ->
+                                    Box(Modifier.width(VioletLayout.carouselWidth)) {
+                                        ArtworkCard(
+                                            track.title,
+                                            track.artistName,
+                                            track.artworkUri,
+                                            onClick = { onPlay(track, section.kind) },
+                                            revision = track.artworkVersion,
+                                            onMenu = { onMenu(track, section.kind) },
+                                            enabled = track.availability == "LOCAL",
+                                        )
                                     }
                                 }
+                            }
                         }
                     }
-                item("playlists-heading") {
-                    SectionHeader(stringResource(R.string.your_playlists)) {
-                        onCollection("playlists")
-                    }
                 }
-                item("playlists") {
-                    if (state.playlists.isEmpty())
-                        MessageCard(
-                            stringResource(R.string.empty_playlists_title),
-                            stringResource(R.string.empty_playlists_description),
-                        )
-                    else
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(VioletLayout.itemSpacing)
-                        ) {
-                            items(state.playlists, key = { it.id }) { playlist ->
-                                Box(Modifier.width(VioletLayout.carouselWidth)) {
-                                    PlaylistCard(playlist) { onPlaylist(playlist.id) }
+                if (state.playlists.isNotEmpty()) {
+                    item("playlists") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionHeader(stringResource(R.string.your_playlists)) {
+                                onCollection("playlists")
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(state.playlists, key = { it.id }) { playlist ->
+                                    Box(Modifier.width(VioletLayout.carouselWidth)) {
+                                        PlaylistCard(playlist) { onPlaylist(playlist.id) }
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+                if (catalogue.hasPermission && !catalogue.loading && catalogue.stats.trackCount == 0) {
+                    item("empty") {
+                        MessageCard(
+                            stringResource(R.string.empty_title),
+                            stringResource(R.string.empty_description),
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HomeShortcuts(onCollection: (String) -> Unit) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        maxItemsInEachRow = 2,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CollectionShortcut(
+            stringResource(R.string.favourites),
+            PlaybackIcons.Heart,
+            { onCollection("favourites") },
+            Modifier.weight(1f),
+        )
+        CollectionShortcut(
+            stringResource(R.string.recently_played),
+            VioletIcons.History,
+            { onCollection("recent") },
+            Modifier.weight(1f),
+        )
+        CollectionShortcut(
+            stringResource(R.string.playlists),
+            VioletIcons.Library,
+            { onCollection("playlists") },
+            Modifier.weight(1f),
+        )
+        CollectionShortcut(
+            stringResource(R.string.recently_added),
+            VioletIcons.Add,
+            { onCollection("added") },
+            Modifier.weight(1f),
+        )
     }
 }

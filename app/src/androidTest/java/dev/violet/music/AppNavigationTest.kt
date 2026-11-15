@@ -23,7 +23,7 @@ class AppNavigationTest {
 
     @Test
     fun homeLibrarySearchAndSettingsAreReachable() {
-        compose.onNodeWithText("Quick picks").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Listening stats").assertIsDisplayed()
         compose.onNode(hasText("Library") and hasClickAction()).performClick()
         compose.onNode(hasText("Albums") and hasClickAction()).assertIsDisplayed().performClick()
         compose.onNode(hasText("Artists") and hasClickAction()).assertIsDisplayed().performClick()

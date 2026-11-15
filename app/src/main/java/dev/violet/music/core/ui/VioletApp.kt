@@ -2,16 +2,16 @@ package dev.violet.music.core.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -22,14 +22,18 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -43,15 +47,6 @@ import dev.violet.music.feature.library.LibraryViewModel
 import dev.violet.music.feature.player.MiniPlayer
 import dev.violet.music.feature.player.PlayerViewModel
 import kotlinx.coroutines.launch
-
-private data class Destination(val route: String, val label: Int, val icon: ImageVector)
-
-private val destinations =
-    listOf(
-        Destination("home", R.string.home, VioletIcons.Home),
-        Destination("search", R.string.search, VioletIcons.Search),
-        Destination("library", R.string.library, VioletIcons.Library),
-    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,11 +157,11 @@ fun VioletApp(
         )
     }
     val route = entry?.destination?.route ?: "home"
-    val isCollection =
-        route.startsWith("album/") ||
-            route.startsWith("artist/") ||
-            route.startsWith("playlist/") ||
-            route.startsWith("collection/")
+    val tab = mainTabs.firstOrNull { it.route == route }
+    var savedTab by rememberSaveable { mutableStateOf("home") }
+    LaunchedEffect(tab) { if (tab != null) savedTab = tab.route }
+    val isPicker = route.endsWith("/add-tracks")
+    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Scaffold(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -174,31 +169,44 @@ fun VioletApp(
             if (route != "now-playing")
                 TopAppBar(
                     title = {
-                        Text(
-                            stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        if (tab != null) {
+                            Text(
+                                stringResource(tab.label),
+                                modifier = Modifier.semantics { heading() },
+                                style = MaterialTheme.typography.headlineMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     },
                     colors =
                         TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background
                         ),
                     navigationIcon = {
-                        if (
-                            isCollection ||
-                                route in listOf("settings", "now-playing", "queue", "stats")
-                        )
+                        if (tab == null) {
                             IconButton(
                                 onClick = { navController.popBackStack() },
-                                enabled = !route.endsWith("/add-tracks") || !addition.pending,
+                                enabled = !isPicker || !addition.pending,
                             ) {
                                 Icon(VioletIcons.Back, stringResource(R.string.back))
                             }
+                        }
                     },
                     actions = {
-                        if (route != "settings")
+                        if (route == "library") {
+                            IconButton(onClick = { dialogs.creating = true }) {
+                                Icon(VioletIcons.Add, stringResource(R.string.new_playlist))
+                            }
+                        }
+                        if (route == "home" || route == "library") {
+                            IconButton(onClick = {
+                                navController.navigate("stats") { launchSingleTop = true }
+                            }) {
+                                Icon(VioletIcons.Stats, stringResource(R.string.listening_stats))
+                            }
+                        }
+                        if (tab != null) {
                             IconButton(
                                 onClick = {
                                     navController.navigate("settings") { launchSingleTop = true }
@@ -206,40 +214,21 @@ fun VioletApp(
                             ) {
                                 Icon(VioletIcons.Settings, stringResource(R.string.settings))
                             }
+                        }
                     },
                 )
         },
         bottomBar = {
-            if (route != "now-playing")
+            if (route != "now-playing" && !keyboardVisible && !isPicker) {
                 Column {
-                    if (route != "now-playing")
-                        MiniPlayer(playback, playerViewModel.controller) {
-                            navController.navigate("now-playing") { launchSingleTop = true }
-                        }
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp,
-                    ) {
-                        destinations.forEach { destination ->
-                            NavigationBarItem(
-                                selected =
-                                    route == destination.route ||
-                                        (isCollection && destination.route == "library"),
-                                onClick = {
-                                    navController.navigate(destination.route) {
-                                        popUpTo(navController.graph.startDestinationId) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = { Icon(destination.icon, contentDescription = null) },
-                                label = { Text(stringResource(destination.label)) },
-                            )
-                        }
+                    MiniPlayer(playback, playerViewModel.controller) {
+                        navController.navigate("now-playing") { launchSingleTop = true }
+                    }
+                    VioletNavigationBar(tab?.route ?: savedTab) { target ->
+                        if (target != route) navController.openMainTab(target)
                     }
                 }
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -260,7 +249,6 @@ fun VioletApp(
                     dialogs.menuOccurrence = occurrence
                     dialogs.menuPlaylist = null
                 },
-                onCreatePlaylist = { dialogs.creating = true },
                 onPlaylistTrackMenu = { track, id, entry ->
                     dialogs.menuTrack = track
                     dialogs.menuFilter = null

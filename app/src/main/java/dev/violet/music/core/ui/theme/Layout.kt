@@ -10,5 +10,5 @@ object VioletLayout {
     val touchTarget = 48.dp
     val artworkRadius = 12.dp
     val gridMinimum = 156.dp
-    val carouselWidth = 172.dp
+    val carouselWidth = 152.dp
 }

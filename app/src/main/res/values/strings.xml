@@ -32,6 +32,7 @@
     <string name="all">All</string>
     <string name="library_search">Search your library</string>
     <string name="sort">Sort</string>
+    <string name="sort_by_value">Sort · %1$s</string>
     <string name="title_asc">Title A–Z</string>
     <string name="title_desc">Title Z–A</string>
     <string name="name_asc">Name A–Z</string>

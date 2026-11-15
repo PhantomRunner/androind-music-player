@@ -62,8 +62,7 @@ class PlaylistTrackPickerUiTest {
 
                 compose.onNode(hasText("Library") and hasClickAction()).performClick()
                 compose.onNode(hasText("Playlists") and hasClickAction()).performClick()
-                scrollTo(hasText("New playlist"))
-                compose.onNodeWithText("New playlist").performClick()
+                compose.onNodeWithContentDescription("New playlist").performClick()
                 val name = "Picker test ${UUID.randomUUID().toString().take(8)}"
                 compose.onNodeWithText("Playlist name").performTextInput(name)
                 compose.onNodeWithText("Save").performClick()

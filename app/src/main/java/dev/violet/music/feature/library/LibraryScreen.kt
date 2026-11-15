@@ -1,20 +1,13 @@
 package dev.violet.music.feature.library
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
@@ -29,6 +22,7 @@ import dev.violet.music.core.ui.theme.VioletLayout
 import dev.violet.music.feature.collection.PlaylistRow
 import kotlinx.coroutines.flow.Flow
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LibraryScreen(
     state: LibraryUiState,
@@ -40,14 +34,12 @@ fun LibraryScreen(
     onArtist: (ArtistSummary) -> Unit,
     onPlaylist: (PlaylistSummary) -> Unit,
     onCollection: (String) -> Unit,
-    onStats: () -> Unit,
     onPermission: () -> Unit,
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
     onPlay: (Track) -> Unit,
     onPlayAll: (Boolean) -> Unit,
     onMenu: (Track) -> Unit,
-    onCreatePlaylist: () -> Unit,
     onCategory: (LibraryCategory) -> Unit,
     onQuery: (String) -> Unit,
     onMode: (DisplayMode) -> Unit,
@@ -60,8 +52,6 @@ fun LibraryScreen(
     val artistItems = artists.collectAsLazyPagingItems()
     val playlistItems = playlists.collectAsLazyPagingItems()
     val category = state.category
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focus = LocalFocusManager.current
     val mode = state.preferences.mode(category)
     val favouritesLabel = stringResource(R.string.favourites)
     val mostLabel = stringResource(R.string.most_played)
@@ -95,66 +85,37 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(VioletLayout.itemSpacing),
             verticalArrangement = Arrangement.spacedBy(VioletLayout.itemSpacing),
         ) {
-            item("title", span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    SectionTitle(stringResource(R.string.library))
-                    TextButton(onClick = onStats) { Text(stringResource(R.string.listening_stats)) }
-                }
-            }
-            item("filters", span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    LibraryCategory.entries.forEach { value ->
-                        FilterChip(
-                            category == value,
-                            { onCategory(value) },
-                            label = { Text(stringResource(value.label())) },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        )
-                    }
-                }
-            }
-            item("search", span = { GridItemSpan(maxLineSpan) }) {
-                OutlinedTextField(
-                    value = state.libraryQuery,
-                    onValueChange = onQuery,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.library_search)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions =
-                        KeyboardActions(
-                            onSearch = {
-                                keyboard?.hide()
-                                focus.clearFocus()
-                            }
-                        ),
-                    trailingIcon = {
-                        if (state.libraryQuery.isNotEmpty())
-                            IconButton(onClick = { onQuery("") }) {
-                                Icon(VioletIcons.Close, stringResource(R.string.clear_search))
-                            }
-                    },
-                )
-            }
-            item("display", span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    LibrarySortMenu(category, state.preferences, onSort)
-                    TextButton(
-                        onClick = {
-                            onMode(
-                                if (mode == DisplayMode.LIST) DisplayMode.GRID else DisplayMode.LIST
+            item("browse-controls", span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        LibraryCategory.entries.forEach { value ->
+                            FilterChip(
+                                selected = category == value,
+                                onClick = { onCategory(value) },
+                                label = { Text(stringResource(value.label())) },
+                                modifier = Modifier.heightIn(min = 48.dp),
                             )
                         }
+                    }
+                    CatalogueSearchField(state.libraryQuery, onQuery, stringResource(R.string.library_search))
+                    val nextMode = if (mode == DisplayMode.LIST) DisplayMode.GRID else DisplayMode.LIST
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(
-                            stringResource(
-                                if (mode == DisplayMode.LIST) R.string.grid_view
-                                else R.string.list_view
+                        LibrarySortMenu(category, state.preferences, onSort)
+                        TextButton(onClick = { onMode(nextMode) }) {
+                            Icon(if (nextMode == DisplayMode.GRID) VioletIcons.Grid else VioletIcons.List, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                stringResource(
+                                    if (nextMode == DisplayMode.GRID) R.string.grid_view else R.string.list_view
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -185,31 +146,20 @@ fun LibraryScreen(
                         favouritesLabel.contains(state.libraryQuery, ignoreCase = true)
                 )
                     item("favourites") {
-                        SystemCollection(
-                            stringResource(R.string.favourites),
-                            stringResource(R.string.your_playlists),
-                        ) {
-                            onCollection("favourites")
-                        }
+                        CollectionShortcut(favouritesLabel, PlaybackIcons.Heart, { onCollection("favourites") })
                     }
                 if (
                     state.libraryQuery.isBlank() ||
                         mostLabel.contains(state.libraryQuery, ignoreCase = true)
                 )
                     item("most") {
-                        SystemCollection(
-                            stringResource(R.string.most_played),
-                            stringResource(R.string.generated_playlist),
-                            generated = true,
-                        ) {
-                            onCollection("most")
-                        }
+                        CollectionShortcut(
+                            mostLabel,
+                            PlaybackIcons.Repeat,
+                            { onCollection("most") },
+                            detail = stringResource(R.string.generated_playlist),
+                        )
                     }
-                item("create", span = { GridItemSpan(maxLineSpan) }) {
-                    Button(onClick = onCreatePlaylist) {
-                        Text(stringResource(R.string.new_playlist))
-                    }
-                }
                 if (category == LibraryCategory.ALL)
                     item("playlist-heading", span = { GridItemSpan(maxLineSpan) }) {
                         SectionHeader(stringResource(R.string.playlists)) {
@@ -375,26 +325,3 @@ fun LibraryCategory.label() =
         LibraryCategory.ALBUMS -> R.string.albums
         LibraryCategory.TRACKS -> R.string.tracks
     }
-
-@Composable
-private fun SystemCollection(
-    title: String,
-    description: String,
-    generated: Boolean = false,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(if (generated) PlaybackIcons.Repeat else PlaybackIcons.Heart, null)
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            Text(description, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}

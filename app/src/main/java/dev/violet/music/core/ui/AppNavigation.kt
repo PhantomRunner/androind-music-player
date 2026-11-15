@@ -33,7 +33,6 @@ fun AppNavigation(
     onPermission: () -> Unit,
     onAndroidSettings: () -> Unit,
     onTrackMenu: (Track, TrackFilter?, String?) -> Unit,
-    onCreatePlaylist: () -> Unit,
     onPlaylistTrackMenu: (Track, String, String) -> Unit,
 ) {
     val state by library.uiState.collectAsStateWithLifecycle()
@@ -50,7 +49,7 @@ fun AppNavigation(
     fun collection(kind: String) {
         if (kind == "playlists") {
             library.category(LibraryCategory.PLAYLISTS)
-            nav.navigate("library") { launchSingleTop = true }
+            nav.openMainTab("library")
         } else nav.navigate("collection/$kind") { launchSingleTop = true }
     }
     NavHost(nav, startDestination = "home") {
@@ -93,14 +92,12 @@ fun AppNavigation(
                 onArtist = { artist(it.id) },
                 onPlaylist = { nav.navigate("playlist/${it.id}") },
                 onCollection = ::collection,
-                onStats = { nav.navigate("stats") },
                 onPermission,
                 onAndroidSettings,
                 library::refresh,
                 onPlay = { player.play(it.id, library.filter()) },
                 onPlayAll = { player.play(null, library.filter(), it) },
                 onMenu = { onTrackMenu(it, library.filter(), null) },
-                onCreatePlaylist,
                 onCategory = library::category,
                 onQuery = library::updateLibraryQuery,
                 onMode = { library.mode(state.category, it) },
