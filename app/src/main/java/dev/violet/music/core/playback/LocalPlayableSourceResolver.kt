@@ -22,7 +22,7 @@ class LocalPlayableSourceResolver @Inject constructor(
     private val database: MusicDatabase,
 ) {
     suspend fun queueIds(filter: TrackFilter): List<String> = database.libraryDao().queueIds(
-        searchPattern(filter.query), filter.albumKey, filter.artistName, filter.recentlyAddedFirst,
+        searchPattern(filter.query), filter.albumKey, filter.artistName, filter.recentlyAddedFirst, filter.favouritesOnly,
     )
 
     suspend fun resolve(ids: List<String>): List<MediaItem> = withContext(Dispatchers.IO) {

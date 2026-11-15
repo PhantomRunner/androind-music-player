@@ -35,6 +35,7 @@ fun SearchScreen(
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
     onPlay: (Track) -> Unit,
+    onMenu: (Track) -> Unit,
 ) {
     val tracks = results.collectAsLazyPagingItems()
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -55,6 +56,6 @@ fun SearchScreen(
         libraryNotices(state, onPermission, onSettings, onRefresh)
         if (state.query.isBlank()) item("intro") {
             MessageCard(stringResource(R.string.search_intro), stringResource(R.string.search_description))
-        } else pagedTracks(tracks, emptySearch = true, onPlay = onPlay)
+        } else pagedTracks(tracks, emptySearch = true, onMenu = onMenu, onPlay = onPlay)
     }
 }

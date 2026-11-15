@@ -57,4 +57,5 @@ interface PlaybackController {
     fun cycleRepeat()
     fun stop()
     fun dismissError()
+    fun reportError(error: PlaybackError)
 }

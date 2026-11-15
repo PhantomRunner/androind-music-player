@@ -29,6 +29,8 @@ import dev.violet.music.R
 import dev.violet.music.core.model.AlbumSummary
 import dev.violet.music.core.model.ArtistSummary
 import dev.violet.music.core.model.Track
+import dev.violet.music.core.model.PlaylistSummary
+import dev.violet.music.feature.collection.PlaylistRow
 import dev.violet.music.core.ui.AlbumRow
 import dev.violet.music.core.ui.ArtistRow
 import dev.violet.music.core.ui.LoadingState
@@ -45,18 +47,26 @@ fun LibraryScreen(
     tracks: Flow<PagingData<Track>>,
     albums: Flow<PagingData<AlbumSummary>>,
     artists: Flow<PagingData<ArtistSummary>>,
+    favourites: Flow<PagingData<Track>>,
+    playlists: Flow<PagingData<PlaylistSummary>>,
     onAlbum: (AlbumSummary) -> Unit,
     onArtist: (ArtistSummary) -> Unit,
     onPermission: () -> Unit,
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
-    onPlay: (Track) -> Unit,
-    onPlayAll: (Boolean) -> Unit,
+    onPlay: (Track, Boolean) -> Unit,
+    onPlayAll: (Boolean, Boolean) -> Unit,
+    onMenu: (Track) -> Unit,
+    onPlaylist: (PlaylistSummary) -> Unit,
+    onCreatePlaylist: () -> Unit,
+    onSort: (Boolean) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val trackItems = tracks.collectAsLazyPagingItems()
     val albumItems = albums.collectAsLazyPagingItems()
     val artistItems = artists.collectAsLazyPagingItems()
+    val favouriteItems = favourites.collectAsLazyPagingItems()
+    val playlistItems = playlists.collectAsLazyPagingItems()
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item("title") { SectionTitle(stringResource(R.string.library)) }
         item("counts") {
@@ -64,7 +74,7 @@ fun LibraryScreen(
         }
         item("filters") {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(R.string.tracks, R.string.albums, R.string.artists).forEachIndexed { index, label ->
+                listOf(R.string.tracks, R.string.albums, R.string.artists, R.string.playlists, R.string.favourites).forEachIndexed { index, label ->
                     FilterChip(
                         selected = tab == index, onClick = { tab = index },
                         label = { Text(stringResource(label)) }, modifier = Modifier.heightIn(min = 48.dp),
@@ -72,15 +82,21 @@ fun LibraryScreen(
                 }
             }
         }
-        libraryNotices(state, onPermission, onSettings, onRefresh)
-        if (tab == 0 && state.stats.trackCount > 0 && state.hasPermission) item("play-actions") {
+        if (tab != 3) libraryNotices(state, onPermission, onSettings, onRefresh)
+        if (tab == 0 || tab == 4) item("sort") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !state.recentSort, onClick = { onSort(false) }, label = { Text(stringResource(R.string.sort_title)) }, modifier = Modifier.heightIn(min = 48.dp))
+                FilterChip(selected = state.recentSort, onClick = { onSort(true) }, label = { Text(stringResource(R.string.recently_added)) }, modifier = Modifier.heightIn(min = 48.dp))
+            }
+        }
+        if ((tab == 0 || tab == 4) && state.stats.trackCount > 0 && state.hasPermission) item("play-actions") {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { onPlayAll(false) }) { Text(stringResource(R.string.play_all)) }
-                OutlinedButton(onClick = { onPlayAll(true) }) { Text(stringResource(R.string.shuffle)) }
+                Button(onClick = { onPlayAll(false, tab == 4) }, enabled = tab != 4 || favouriteItems.itemCount > 0) { Text(stringResource(R.string.play_all)) }
+                OutlinedButton(onClick = { onPlayAll(true, tab == 4) }, enabled = tab != 4 || favouriteItems.itemCount > 0) { Text(stringResource(R.string.shuffle)) }
             }
         }
         when (tab) {
-            0 -> pagedTracks(trackItems, onPlay = onPlay)
+            0 -> pagedTracks(trackItems, onMenu = onMenu, onPlay = { onPlay(it, false) })
             1 -> {
                 summaryStatus(albumItems)
                 items(albumItems.itemCount, key = albumItems.itemKey { "album:${it.albumKey}" }) { index ->
@@ -93,11 +109,19 @@ fun LibraryScreen(
                     artistItems[index]?.let { ArtistRow(it) { onArtist(it) } }
                 }
             }
+            3 -> {
+                item("create-playlist") { Button(onClick = onCreatePlaylist) { Text(stringResource(R.string.new_playlist)) } }
+                summaryStatus(playlistItems, emptyPlaylists = true)
+                items(playlistItems.itemCount, key = playlistItems.itemKey { "playlist:${it.id}" }) { index ->
+                    playlistItems[index]?.let { PlaylistRow(it) { onPlaylist(it) } }
+                }
+            }
+            4 -> pagedTracks(favouriteItems, emptyFavourites = true, onMenu = onMenu, onPlay = { onPlay(it, true) })
         }
     }
 }
 
-private fun <T : Any> LazyListScope.summaryStatus(items: LazyPagingItems<T>) {
+private fun <T : Any> LazyListScope.summaryStatus(items: LazyPagingItems<T>, emptyPlaylists: Boolean = false) {
     when {
         items.loadState.refresh is LoadState.Loading -> item { LoadingState() }
         items.loadState.refresh is LoadState.Error || items.loadState.append is LoadState.Error -> item {
@@ -107,7 +131,10 @@ private fun <T : Any> LazyListScope.summaryStatus(items: LazyPagingItems<T>) {
             )
         }
         items.itemCount == 0 -> item {
-            MessageCard(stringResource(R.string.empty_title), stringResource(R.string.empty_description))
+            MessageCard(
+                stringResource(if (emptyPlaylists) R.string.empty_playlists_title else R.string.empty_title),
+                stringResource(if (emptyPlaylists) R.string.empty_playlists_description else R.string.empty_description),
+            )
         }
     }
 }

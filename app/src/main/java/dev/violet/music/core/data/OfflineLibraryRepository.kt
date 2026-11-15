@@ -21,8 +21,9 @@ class OfflineLibraryRepository @Inject constructor(
     override fun observeStats() = dao.stats()
     override fun observeLastScan() = dao.lastScan()
     override fun observeRecentlyAdded() = dao.recentTracks()
+    override fun observeTrack(id: String) = dao.track(id)
     override fun tracks(filter: TrackFilter) = Pager(pagingConfig) {
-        dao.tracks(searchPattern(filter.query), filter.albumKey, filter.artistName, filter.recentlyAddedFirst)
+        dao.tracks(searchPattern(filter.query), filter.albumKey, filter.artistName, filter.recentlyAddedFirst, filter.favouritesOnly)
     }.flow
     override fun albums() = Pager(pagingConfig) { dao.albums() }.flow
     override fun artists() = Pager(pagingConfig) { dao.artists() }.flow

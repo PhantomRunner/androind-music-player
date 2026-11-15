@@ -32,6 +32,7 @@ data class LibraryUiState(
     val hasPermission: Boolean = false,
     val loading: Boolean = true,
     val catalogueError: Boolean = false,
+    val recentSort: Boolean = false,
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -43,6 +44,7 @@ class LibraryViewModel @Inject constructor(
     private val permission = MutableStateFlow(false)
     private var checkedOnEntry = false
     private val query = savedStateHandle.getStateFlow("query", "")
+    private val recentSort = savedStateHandle.getStateFlow("recentSort", false)
     private val catalogue = combine(
         repository.observeStats(), repository.observeRecentlyAdded(), repository.observeLastScan(),
         repository.scanStatus, query,
@@ -50,11 +52,12 @@ class LibraryViewModel @Inject constructor(
         LibraryUiState(stats, recent, lastScan, scan, text, loading = false)
     }.catch { emit(LibraryUiState(loading = false, catalogueError = true)) }
 
-    val uiState = combine(catalogue, permission) { state, granted ->
-        state.copy(hasPermission = granted)
+    val uiState = combine(catalogue, permission, recentSort) { state, granted, sort ->
+        state.copy(hasPermission = granted, recentSort = sort)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 
-    val tracks = repository.tracks().cachedIn(viewModelScope)
+    val tracks = recentSort.flatMapLatest { repository.tracks(TrackFilter(recentlyAddedFirst = it)) }.cachedIn(viewModelScope)
+    val favourites = recentSort.flatMapLatest { repository.tracks(TrackFilter(recentlyAddedFirst = it, favouritesOnly = true)) }.cachedIn(viewModelScope)
     val albums = repository.albums().cachedIn(viewModelScope)
     val artists = repository.artists().cachedIn(viewModelScope)
     val searchResults = query.debounce(300).distinctUntilChanged().flatMapLatest {
@@ -62,6 +65,7 @@ class LibraryViewModel @Inject constructor(
     }.cachedIn(viewModelScope)
 
     fun updateQuery(value: String) { savedStateHandle["query"] = value }
+    fun sortByRecent(value: Boolean) { savedStateHandle["recentSort"] = value }
 
     fun permissionChecked(granted: Boolean) {
         val shouldScan = granted && (!checkedOnEntry || !permission.value)

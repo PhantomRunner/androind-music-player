@@ -15,6 +15,7 @@ interface LibraryRepository {
     fun observeStats(): Flow<LibraryStats>
     fun observeLastScan(): Flow<Long?>
     fun observeRecentlyAdded(): Flow<List<Track>>
+    fun observeTrack(id: String): Flow<Track?>
     fun tracks(filter: TrackFilter = TrackFilter()): Flow<PagingData<Track>>
     fun albums(): Flow<PagingData<AlbumSummary>>
     fun artists(): Flow<PagingData<ArtistSummary>>

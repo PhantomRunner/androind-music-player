@@ -14,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.violet.music.MainActivity
 import dev.violet.music.TestAudio
 import dev.violet.music.core.database.MusicDatabase
+import dev.violet.music.core.database.MIGRATION_1_2
 import dev.violet.music.core.database.RoomCatalogueWriter
 import dev.violet.music.core.media.MediaStoreScanner
 import java.io.FileInputStream
@@ -37,7 +38,7 @@ class PlaybackIntegrationTest {
     fun realAudioQueueSeekBackgroundSystemControlsAndReconnect() = runBlocking {
         grantAudio()
         val fixtures = List(2) { TestAudio.create(context) }
-        val database = Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db").build()
+        val database = Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db").addMigrations(MIGRATION_1_2).build()
         var scenario: ActivityScenario<MainActivity>? = null
         var facade: PlaybackController? = null
         try {
@@ -95,7 +96,7 @@ class PlaybackIntegrationTest {
     @Test
     fun unknownTrackFailsWithoutStartingPlayback() = runBlocking {
         grantAudio()
-        val database = Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db").build()
+        val database = Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db").addMigrations(MIGRATION_1_2).build()
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         val facade = withContext(Dispatchers.Main) { Media3PlaybackController(context, LocalPlayableSourceResolver(context, database)).also { it.acquire() } }
         try {

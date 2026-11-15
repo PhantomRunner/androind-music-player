@@ -1,6 +1,5 @@
 package dev.violet.music.core.ui
 
-import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -30,25 +29,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import dev.violet.music.R
-import dev.violet.music.feature.home.HomeScreen
-import dev.violet.music.feature.library.CollectionScreen
-import dev.violet.music.feature.library.LibraryScreen
 import dev.violet.music.feature.library.LibraryViewModel
-import dev.violet.music.feature.search.SearchScreen
-import dev.violet.music.feature.settings.SettingsScreen
 import dev.violet.music.feature.player.PlayerViewModel
 import dev.violet.music.feature.player.MiniPlayer
-import dev.violet.music.feature.player.NowPlayingScreen
-import dev.violet.music.feature.player.QueueScreen
-import dev.violet.music.core.model.TrackFilter
 import dev.violet.music.core.playback.PlaybackError
+import dev.violet.music.feature.collection.CollectionViewModel
+import dev.violet.music.feature.collection.CollectionDialogsState
+import dev.violet.music.feature.collection.CollectionDialogs
 
 private data class Destination(val route: String, val label: Int, val icon: ImageVector)
 private val destinations = listOf(
@@ -62,13 +52,20 @@ private val destinations = listOf(
 fun VioletApp(
     viewModel: LibraryViewModel,
     playerViewModel: PlayerViewModel,
+    collectionViewModel: CollectionViewModel,
     onPermission: () -> Unit,
     onAndroidSettings: () -> Unit,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val playback by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val collectionError by collectionViewModel.error.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    LaunchedEffect(collectionError) {
+        if (collectionError) {
+            snackbar.showSnackbar(context.getString(R.string.collection_error))
+            collectionViewModel.dismissError()
+        }
+    }
     LaunchedEffect(playback.error) {
         playback.error?.let { error ->
             val message = when (error) {
@@ -87,9 +84,11 @@ fun VioletApp(
         }
     }
     val navController = rememberNavController()
+    val dialogs = remember { CollectionDialogsState() }
+    CollectionDialogs(dialogs, collectionViewModel) { navController.navigate("playlist/$it") }
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "home"
-    val isCollection = route.startsWith("album/") || route.startsWith("artist/")
+    val isCollection = route.startsWith("album/") || route.startsWith("artist/") || route.startsWith("playlist/")
     Scaffold(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -135,54 +134,10 @@ fun VioletApp(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-            NavHost(navController, startDestination = "home") {
-                composable("home") {
-                    HomeScreen(
-                        state, { navController.navigate("library") }, { navController.navigate("search") },
-                        onPermission, onAndroidSettings, viewModel::refresh,
-                        onPlay = { track -> playerViewModel.playIds(state.recentTracks.map { it.id }, state.recentTracks.indexOfFirst { it.id == track.id }) },
-                    )
-                }
-                composable("search") {
-                    SearchScreen(state, viewModel.searchResults, viewModel::updateQuery, onPermission, onAndroidSettings, viewModel::refresh) {
-                        playerViewModel.play(it.id, TrackFilter(query = state.query))
-                    }
-                }
-                composable("library") {
-                    LibraryScreen(
-                        state, viewModel.tracks, viewModel.albums, viewModel.artists,
-                        onAlbum = { navController.navigate("album/${Uri.encode(it.albumKey)}/${Uri.encode(it.title)}") },
-                        onArtist = { navController.navigate("artist/${Uri.encode(it.name)}") },
-                        onPermission, onAndroidSettings, viewModel::refresh,
-                        onPlay = { playerViewModel.play(it.id) }, onPlayAll = { playerViewModel.play(null, shuffle = it) },
-                    )
-                }
-                composable("settings") {
-                    SettingsScreen(state, onPermission, onAndroidSettings, viewModel::refresh)
-                }
-                composable(
-                    "album/{key}/{title}",
-                    arguments = listOf(navArgument("key") { type = NavType.StringType }, navArgument("title") { type = NavType.StringType }),
-                ) { backStackEntry ->
-                    val key = requireNotNull(backStackEntry.arguments?.getString("key"))
-                    val title = requireNotNull(backStackEntry.arguments?.getString("title"))
-                    val tracks = remember(key) { viewModel.albumTracks(key) }
-                    CollectionScreen(title, state, tracks, onPermission, onAndroidSettings, viewModel::refresh,
-                        onPlay = { playerViewModel.play(it.id, TrackFilter(albumKey = key)) },
-                        onPlayAll = { playerViewModel.play(null, TrackFilter(albumKey = key), it) })
-                }
-                composable("artist/{name}", arguments = listOf(navArgument("name") { type = NavType.StringType })) { backStackEntry ->
-                    val name = requireNotNull(backStackEntry.arguments?.getString("name"))
-                    val tracks = remember(name) { viewModel.artistTracks(name) }
-                    CollectionScreen(name, state, tracks, onPermission, onAndroidSettings, viewModel::refresh,
-                        onPlay = { playerViewModel.play(it.id, TrackFilter(artistName = name)) },
-                        onPlayAll = { playerViewModel.play(null, TrackFilter(artistName = name), it) })
-                }
-                composable("now-playing") {
-                    NowPlayingScreen(playback, playerViewModel.controller) { navController.navigate("queue") }
-                }
-                composable("queue") { QueueScreen(playback, playerViewModel.controller) }
-            }
+            AppNavigation(
+                navController, viewModel, playerViewModel, collectionViewModel, onPermission, onAndroidSettings,
+                onTrackMenu = { dialogs.menuTrack = it }, onCreatePlaylist = { dialogs.creating = true },
+            )
         }
     }
 }

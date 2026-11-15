@@ -8,7 +8,7 @@ import androidx.paging.compose.itemKey
 import dev.violet.music.R
 import dev.violet.music.core.model.Track
 
-fun LazyListScope.pagedTracks(tracks: LazyPagingItems<Track>, emptySearch: Boolean = false, onPlay: (Track) -> Unit) {
+fun LazyListScope.pagedTracks(tracks: LazyPagingItems<Track>, emptySearch: Boolean = false, emptyFavourites: Boolean = false, onMenu: ((Track) -> Unit)? = null, onPlay: (Track) -> Unit) {
     if (tracks.loadState.refresh is LoadState.Loading && tracks.itemCount == 0) {
         item("tracks-loading") { LoadingState() }
     } else if (tracks.loadState.refresh is LoadState.Error) {
@@ -21,13 +21,13 @@ fun LazyListScope.pagedTracks(tracks: LazyPagingItems<Track>, emptySearch: Boole
     } else if (tracks.itemCount == 0) {
         item("tracks-empty") {
             MessageCard(
-                stringResource(if (emptySearch) R.string.search_empty else R.string.empty_title),
-                stringResource(if (emptySearch) R.string.search_empty_description else R.string.empty_description),
+                stringResource(when { emptySearch -> R.string.search_empty; emptyFavourites -> R.string.empty_favourites_title; else -> R.string.empty_title }),
+                stringResource(when { emptySearch -> R.string.search_empty_description; emptyFavourites -> R.string.empty_favourites_description; else -> R.string.empty_description }),
             )
         }
     }
     items(count = tracks.itemCount, key = tracks.itemKey { "track:${it.id}" }) { index ->
-        tracks[index]?.let { track -> TrackRow(track) { onPlay(track) } }
+        tracks[index]?.let { track -> TrackRow(track, onMenu = onMenu?.let { action -> { action(track) } }) { onPlay(track) } }
     }
     when (tracks.loadState.append) {
         is LoadState.Loading -> item("append-loading") { LoadingState() }

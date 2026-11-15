@@ -12,7 +12,7 @@ import dev.violet.music.core.playback.PlayableTrack
 import kotlinx.coroutines.flow.Flow
 
 private const val TRACK_COLUMNS = "id, title, artistName, albumTitle, albumKey, durationMs, " +
-    "artworkUri, availability, dateAdded"
+    "artworkUri, availability, dateAdded, EXISTS(SELECT 1 FROM favourites f WHERE f.trackId = tracks.id) AS isFavourite"
 
 @Dao
 interface LibraryDao {
@@ -22,9 +22,13 @@ interface LibraryDao {
             "artistName LIKE :pattern ESCAPE '!' OR albumTitle LIKE :pattern ESCAPE '!') " +
             "AND (:albumKey IS NULL OR albumKey = :albumKey) " +
             "AND (:artistName IS NULL OR artistName = :artistName COLLATE NOCASE) " +
+            "AND (:favouritesOnly = 0 OR EXISTS(SELECT 1 FROM favourites f WHERE f.trackId = tracks.id)) " +
             "ORDER BY CASE WHEN :recent THEN dateAdded END DESC, title COLLATE NOCASE, id",
     )
-    fun tracks(pattern: String, albumKey: String?, artistName: String?, recent: Boolean): PagingSource<Int, Track>
+    fun tracks(pattern: String, albumKey: String?, artistName: String?, recent: Boolean, favouritesOnly: Boolean = false): PagingSource<Int, Track>
+
+    @Query("SELECT $TRACK_COLUMNS FROM tracks WHERE id = :id")
+    fun track(id: String): Flow<Track?>
 
     @Query("SELECT $TRACK_COLUMNS FROM tracks ORDER BY dateAdded DESC, title COLLATE NOCASE, id LIMIT 8")
     fun recentTracks(): Flow<List<Track>>
@@ -66,9 +70,10 @@ interface LibraryDao {
             "OR albumTitle LIKE :pattern ESCAPE '!') " +
             "AND (:albumKey IS NULL OR albumKey = :albumKey) " +
             "AND (:artistName IS NULL OR artistName = :artistName COLLATE NOCASE) " +
+            "AND (:favouritesOnly = 0 OR EXISTS(SELECT 1 FROM favourites f WHERE f.trackId = tracks.id)) " +
             "ORDER BY CASE WHEN :recent THEN dateAdded END DESC, title COLLATE NOCASE, id",
     )
-    suspend fun queueIds(pattern: String, albumKey: String?, artistName: String?, recent: Boolean): List<String>
+    suspend fun queueIds(pattern: String, albumKey: String?, artistName: String?, recent: Boolean, favouritesOnly: Boolean = false): List<String>
 
     @Query(
         "SELECT t.id, t.title, t.artistName, t.albumTitle, t.artworkUri, t.durationMs, a.uri, a.mimeType " +

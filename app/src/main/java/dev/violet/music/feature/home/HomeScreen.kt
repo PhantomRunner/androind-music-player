@@ -37,6 +37,7 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
     onPlay: (Track) -> Unit,
+    onMenu: (Track) -> Unit,
 ) {
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item("hero") {
@@ -69,7 +70,7 @@ fun HomeScreen(
                     if (state.hasPermission) stringResource(R.string.scan_library) else null, onRefresh,
                 )
             }
-            items(state.recentTracks, key = { it.id }) { track -> TrackRow(track) { onPlay(track) } }
+            items(state.recentTracks, key = { it.id }) { track -> TrackRow(track, onMenu = { onMenu(track) }) { onPlay(track) } }
             item("search-shortcut") {
                 TextButton(onClick = onSearch) { Text(stringResource(R.string.find_something)) }
             }

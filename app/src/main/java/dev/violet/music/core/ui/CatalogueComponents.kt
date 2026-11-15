@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,7 +62,7 @@ fun Artwork(uri: String?, size: Dp = 56.dp) {
 }
 
 @Composable
-fun TrackRow(track: Track, onPlay: (() -> Unit)? = null) {
+fun TrackRow(track: Track, onMenu: (() -> Unit)? = null, onPlay: (() -> Unit)? = null) {
     val playLabel = stringResource(R.string.play)
     Row(
         Modifier.fillMaxWidth().heightIn(min = 80.dp)
@@ -72,6 +73,7 @@ fun TrackRow(track: Track, onPlay: (() -> Unit)? = null) {
         Artwork(track.artworkUri)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(track.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (track.isFavourite) Icon(PlaybackIcons.Heart, stringResource(R.string.favourites), Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
             Text(
                 "${track.artistName} · ${track.albumTitle}", style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -85,6 +87,9 @@ fun TrackRow(track: Track, onPlay: (() -> Unit)? = null) {
             formatDuration(track.durationMs), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (onMenu != null) IconButton(onClick = onMenu) {
+            Icon(PlaybackIcons.More, stringResource(R.string.track_options, track.title))
+        }
     }
 }
 

@@ -29,9 +29,13 @@ import dev.violet.music.core.ui.Artwork
 import dev.violet.music.core.ui.MessageCard
 import dev.violet.music.core.ui.SectionTitle
 import dev.violet.music.core.ui.formatDuration
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import dev.violet.music.core.ui.PlaybackIcons
+import dev.violet.music.core.model.Track
 
 @Composable
-fun NowPlayingScreen(state: PlaybackUiState, controller: PlaybackController, onQueue: () -> Unit) {
+fun NowPlayingScreen(state: PlaybackUiState, controller: PlaybackController, track: Track?, onMenu: (Track) -> Unit, onQueue: () -> Unit) {
     val current = state.current
     var drag by remember(current?.id, state.currentIndex) { mutableFloatStateOf(-1f) }
     val seekLabel = stringResource(R.string.seek)
@@ -63,6 +67,11 @@ fun NowPlayingScreen(state: PlaybackUiState, controller: PlaybackController, onQ
                 }
             }
             item { TransportControls(state, controller, onQueue) }
+            if (track != null) item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    IconButton(onClick = { onMenu(track) }) { Icon(PlaybackIcons.More, stringResource(R.string.track_options, track.title)) }
+                }
+            }
             item { TextButton(onClick = controller::stop) { Text(stringResource(R.string.stop_playback)) } }
         }
     }

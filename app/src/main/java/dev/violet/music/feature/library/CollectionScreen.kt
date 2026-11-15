@@ -29,6 +29,7 @@ fun CollectionScreen(
     onRefresh: () -> Unit,
     onPlay: (Track) -> Unit,
     onPlayAll: (Boolean) -> Unit,
+    onMenu: (Track) -> Unit,
 ) {
     val items = tracks.collectAsLazyPagingItems()
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -40,6 +41,6 @@ fun CollectionScreen(
                 OutlinedButton(onClick = { onPlayAll(true) }) { Text(stringResource(R.string.shuffle)) }
             }
         }
-        pagedTracks(items, onPlay = onPlay)
+        pagedTracks(items, onMenu = onMenu, onPlay = onPlay)
     }
 }

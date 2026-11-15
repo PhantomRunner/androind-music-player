@@ -1,6 +1,6 @@
 # Violet Music
 
-Native, offline Android music player with an original Midnight Violet interface. **M0–M2** provide Home, Search, Library, album/artist browsing, Settings, audio permissions, actual MediaStore indexing, a persistent Room catalogue and real Media3 playback. Persistent collection editing is the next implementation step.
+Native, offline Android music player with an original Midnight Violet interface. **M0–M3** provide Home, Search, Library, album/artist browsing, Settings, actual MediaStore indexing, real background playback, favourites and editable persistent playlists.
 
 ## Open and run
 
@@ -12,6 +12,7 @@ Requirements: Android Studio with Android SDK Platform **36**, Build Tools **35.
 4. Select the `app` configuration and press Run. For a physical device, accept its USB debugging prompt first.
 5. Tap **Allow music access**. Put your own music in the device's Music folder and wait for Android to index it. A scan starts after permission is granted; later scans are available under **Settings → Scan device music**.
 6. Browse Library's Tracks, Albums and Artists, and search by title, artist or album. Tap a track to play, or use Play all/Shuffle. Open the mini player for seek, repeat, shuffle and queue controls. Playback continues in the background and exposes system media controls.
+7. Open a track's options to add/remove a favourite or add it to a playlist. Library's horizontally scrollable filters include Playlists and Favourites. Create a playlist there or from the track picker; open it to rename/delete, move entries up/down or remove them. Deleting a playlist does not delete audio or favourites. Duplicate entries are supported.
 
 Command line, with `JAVA_HOME` pointing to JDK 17 and the SDK configured:
 
@@ -48,6 +49,7 @@ dev.violet.music
   MainActivity / VioletApplication  Android entry points, permission lifecycle, Hilt
   core/model                      Immutable catalogue models
   core/data                       LibraryRepository and Room-backed implementation
+                                  CollectionRepository for playlists/favourites
   core/database                   Room entities, DAO, transactional catalogue writer
   core/media                      Read-only MediaStore scanner and scan coordinator
   core/playback                   MediaSessionService, controller facade and URI resolver
@@ -58,6 +60,7 @@ dev.violet.music
   feature/search                  Debounced local search UI
   feature/settings                Refresh, permission and indexing information
   feature/player                  Mini player, Now Playing and queue
+  feature/collection              Playlist editor and track/playlist dialogs
 ```
 
 Compose reads immutable `LibraryUiState` using `collectAsStateWithLifecycle`; paged lists consume repository `Flow<PagingData<…>>`, with a 250-row page-cache budget per list. Composables never access Room or MediaStore. Hilt supplies one repository/indexer per app; Room is the persistent app-facing source of truth. MediaStore queries run on `Dispatchers.IO`; Room runs database transactions and observable queries on its own executors.
@@ -81,7 +84,7 @@ Versions are pinned in `gradle/libs.versions.toml`, using the available stable t
 | Media3 ExoPlayer / Session | 1.8.1 | Single background player, media session and system controls |
 | Coroutines Guava | 1.9.0 | Cancellable Media3 future/Room coroutine integration |
 
-Database v1 contains only `tracks`, `media_assets`, and `scan_state`. Its generated schema is in `app/schemas`. Future changes must increment the version, export the new schema and supply a tested migration that preserves UUIDs and user data. There is no destructive migration fallback. [Architecture decisions](docs/architecture-decisions.md) explain milestone boundaries, scan completeness and deferred functionality.
+Database v2 adds `favourites`, `playlists` and `playlist_entries` to the catalogue tables. Explicit migration `1 → 2` preserves all existing track/asset UUIDs, metadata and scan state. Both exported schemas are in `app/schemas`. Future changes must increment the version, export the new schema and supply a tested migration that preserves UUIDs and user data. There is no destructive migration fallback. [Architecture decisions](docs/architecture-decisions.md) explain milestone boundaries, scan completeness and deferred functionality.
 
 ## Verification
 
@@ -121,6 +124,10 @@ The service owns the only ExoPlayer. UI controllers connect to that session; ope
 
 M2 verification added two instrumented tests: actual WAV playback, queue/seek/shuffle/repeat, background position advancement, platform media transport controls, reconnection, removal/stop and an unavailable UUID. The full M2 run passed 12 JVM tests and 14 instrumented tests, with build and lint passing. Bluetooth hardware and manufacturer-specific power management remain physical-device checks.
 
-M3 adds persistent playlists/favourites. Server APIs, authentication and sync remain outside the offline MVP; `serverId` is only a nullable storage field.
+M3 adds paged playlists/favourites, 1–120 character names, duplicate-safe entry IDs, transactional appends/reordering/removal and explicit playlist-deletion confirmation. Playlist playback captures entry order and the selected entry, including duplicate track IDs. Edits do not rewrite an already playing queue; play again to capture the edited ordering. A–Z/recently-added sorting applies to catalogue/favourite playback. Collection errors preserve existing data and surface in the UI.
+
+The M3 build, lint, 14 JVM tests and 21 instrumented tests passed. Added coverage includes migration `1 → 2`, concurrent entry appends, duplicate/reorder/remove behavior, persistence, scan failure preservation and the real UI create/add/favourite/rename/recreate/delete path. The serialization BOM is aligned to 1.8.1 so Room's migration bundle and app/test runtimes share the same ABI.
+
+Server APIs, authentication and sync remain outside the offline MVP; `serverId` is only a nullable storage field.
 
 Git uses `main`, with local milestone commits and no remote. Local starter requirement files are ignored to keep them out of commits.

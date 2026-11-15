@@ -114,10 +114,13 @@ class Media3PlaybackController @Inject constructor(
     }
 
     override suspend fun play(filter: TrackFilter, trackId: String?, shuffle: Boolean) {
-        val ids = resolver.queueIds(filter).toMutableList()
-        // A tap can race a refreshed/debounced list: preserve the explicitly selected item.
-        if (trackId != null && trackId !in ids) ids.add(0, trackId)
-        playIds(ids, if (trackId == null) 0 else ids.indexOf(trackId), shuffle)
+        try {
+            val ids = resolver.queueIds(filter).toMutableList()
+            // A tap can race a refreshed/debounced list: preserve the explicitly selected item.
+            if (trackId != null && trackId !in ids) ids.add(0, trackId)
+            playIds(ids, if (trackId == null) 0 else ids.indexOf(trackId), shuffle)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { reportError(PlaybackError.PLAYBACK) }
     }
 
     override suspend fun playIds(ids: List<String>, startIndex: Int, shuffle: Boolean) {
@@ -172,6 +175,7 @@ class Media3PlaybackController @Inject constructor(
     }
     override fun stop() = command { pause(); stop(); clearMediaItems() }
     override fun dismissError() { mutableState.value = mutableState.value.copy(error = null) }
+    override fun reportError(error: PlaybackError) { mutableState.value = mutableState.value.copy(error = error) }
 
     private fun publish(rebuildQueue: Boolean = false) {
         val player = controller ?: return

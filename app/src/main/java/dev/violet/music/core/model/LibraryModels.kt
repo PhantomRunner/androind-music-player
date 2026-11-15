@@ -10,6 +10,7 @@ data class Track(
     val artworkUri: String?,
     val availability: String,
     val dateAdded: Long,
+    val isFavourite: Boolean = false,
 )
 
 data class AlbumSummary(
@@ -34,4 +35,5 @@ data class TrackFilter(
     val albumKey: String? = null,
     val artistName: String? = null,
     val recentlyAddedFirst: Boolean = false,
+    val favouritesOnly: Boolean = false,
 )
