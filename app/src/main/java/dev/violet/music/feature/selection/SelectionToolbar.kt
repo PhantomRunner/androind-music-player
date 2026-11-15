@@ -23,11 +23,13 @@ fun SelectionToolbar(
     @androidx.annotation.StringRes startLabel: Int = R.string.select_tracks,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val addition by collections.addition.collectAsStateWithLifecycle()
     LaunchedEffect(source) { viewModel.source(source) }
     DisposableEffect(source.context) {
         onDispose { if (clearOnDispose) viewModel.leave(source.context) }
     }
-    BackHandler(state.active) { viewModel.cancel() }
+    BackHandler(state.active) { if (!addition.pending) viewModel.cancel() }
+    val busy = state.running || addition.pending
     var choosing by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf(false) }
@@ -40,20 +42,22 @@ fun SelectionToolbar(
             stringResource(R.string.selected_count, state.selected.size),
             style = MaterialTheme.typography.titleMedium,
         )
-        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (state.loading || addition.working) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (state.running) Text(stringResource(R.string.bulk_running, state.processed))
         if (state.error)
             Text(stringResource(R.string.collection_error), color = MaterialTheme.colorScheme.error)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = viewModel::selectAll, enabled = !state.running && !state.loading) {
+            TextButton(onClick = viewModel::selectAll, enabled = !busy && !state.loading) {
                 Text(stringResource(R.string.select_all))
             }
-            TextButton(onClick = viewModel::clear, enabled = !state.running) {
+            TextButton(onClick = viewModel::clear, enabled = !busy) {
                 Text(stringResource(R.string.deselect_all))
             }
-            TextButton(onClick = viewModel::cancel) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = viewModel::cancel, enabled = !busy) {
+                Text(stringResource(R.string.cancel))
+            }
         }
-        if (state.selected.isNotEmpty() && !state.running && !state.loading && !state.updating)
+        if (state.selected.isNotEmpty() && !busy && !state.loading && !state.updating)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { choosing = true }) {
                     Text(stringResource(R.string.add_to_playlist))
@@ -79,7 +83,7 @@ fun SelectionToolbar(
             { choosing = false },
             { id ->
                 choosing = false
-                viewModel.run(BulkAction.ADD_PLAYLIST, id)
+                collections.add(id, viewModel.playlistAddItems(source.context), PlaylistAddOrigin(source.context))
             },
             { creating = true },
         )
@@ -92,7 +96,9 @@ fun SelectionToolbar(
             onSave = { name ->
                 creating = false
                 choosing = false
-                collections.create(name) { viewModel.run(BulkAction.ADD_PLAYLIST, it) }
+                val items = viewModel.playlistAddItems(source.context)
+                if (items.isNotEmpty())
+                    collections.create(name) { collections.add(it, items, PlaylistAddOrigin(source.context)) }
             },
         )
     if (removing)

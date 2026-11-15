@@ -1,6 +1,9 @@
 package dev.violet.music.core.data
 
 import androidx.paging.PagingData
+import dev.violet.music.core.model.PlaylistAddItem
+import dev.violet.music.core.model.PlaylistAddResult
+import dev.violet.music.core.model.PlaylistDuplicatePolicy
 import dev.violet.music.core.model.PlaylistEntry
 import dev.violet.music.core.model.PlaylistQueueItem
 import dev.violet.music.core.model.PlaylistSummary
@@ -30,7 +33,12 @@ interface CollectionRepository {
 
     suspend fun setFavourite(trackId: String, favourite: Boolean)
 
-    suspend fun addTrack(playlistId: String, trackId: String)
+    suspend fun addTracks(
+        playlistId: String,
+        items: List<PlaylistAddItem>,
+        operationId: String,
+        policy: PlaylistDuplicatePolicy = PlaylistDuplicatePolicy.Check,
+    ): PlaylistAddResult
 
     suspend fun removeEntry(entryId: String)
 

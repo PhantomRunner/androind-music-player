@@ -18,7 +18,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import dev.violet.music.R
-import dev.violet.music.core.model.BulkAction
 import dev.violet.music.core.model.SelectedTrack
 import dev.violet.music.core.model.SelectionSource
 import dev.violet.music.core.model.Track
@@ -38,6 +37,8 @@ fun PlaylistTrackPickerScreen(
     filter: TrackFilter,
     tracks: Flow<PagingData<Track>>,
     selection: SelectionViewModel,
+    collections: CollectionViewModel,
+    pickerEntryId: String,
     onQuery: (String) -> Unit,
     onPermission: () -> Unit,
     onSettings: () -> Unit,
@@ -46,6 +47,7 @@ fun PlaylistTrackPickerScreen(
 ) {
     val items = tracks.collectAsLazyPagingItems()
     val state by selection.uiState.collectAsStateWithLifecycle()
+    val addition by collections.addition.collectAsStateWithLifecycle()
     val source =
         remember(playlistId, filter) { SelectionSource("playlist-add:$playlistId", filter) }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -60,8 +62,8 @@ fun PlaylistTrackPickerScreen(
             if (activity?.isChangingConfigurations != true) selection.leave(source.context)
         }
     }
-    BackHandler(onBack = onClose)
-    val busy = state.running || state.loading || state.updating || query != filter.query
+    BackHandler { if (!addition.pending) onClose() }
+    val busy = addition.pending || state.loading || state.updating || query != filter.query
     val playlist = header.playlist
     fun toggle(track: Track) {
         if (!busy)
@@ -90,7 +92,7 @@ fun PlaylistTrackPickerScreen(
                     OutlinedTextField(
                         value = query,
                         onValueChange = onQuery,
-                        enabled = !state.running,
+                        enabled = !addition.pending,
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text(stringResource(R.string.search_tracks_to_add)) },
                         singleLine = true,
@@ -104,7 +106,7 @@ fun PlaylistTrackPickerScreen(
                             ),
                         trailingIcon = {
                             if (query.isNotEmpty())
-                                IconButton(onClick = { onQuery("") }, enabled = !state.running) {
+                                IconButton(onClick = { onQuery("") }, enabled = !addition.pending) {
                                     Icon(VioletIcons.Close, stringResource(R.string.clear_search))
                                 }
                         },
@@ -135,7 +137,7 @@ fun PlaylistTrackPickerScreen(
             }
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (state.running) Text(stringResource(R.string.bulk_running, state.processed))
+        if (addition.working) Text(stringResource(R.string.checking_playlist_tracks))
         if (state.error)
             Text(stringResource(R.string.collection_error), color = MaterialTheme.colorScheme.error)
         Row(
@@ -143,13 +145,21 @@ fun PlaylistTrackPickerScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Button(
-                onClick = { selection.run(BulkAction.ADD_PLAYLIST, playlistId, onClose) },
+                onClick = {
+                    collections.add(
+                        playlistId,
+                        selection.playlistAddItems(source.context),
+                        PlaylistAddOrigin(source.context, pickerEntryId),
+                    )
+                },
                 enabled = playlist != null && !busy && state.selected.isNotEmpty(),
                 modifier = Modifier.weight(1f),
             ) {
                 Text(stringResource(R.string.add_selected_tracks, state.selected.size))
             }
-            TextButton(onClick = onClose) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = onClose, enabled = !addition.pending) {
+                Text(stringResource(R.string.cancel))
+            }
         }
     }
 }

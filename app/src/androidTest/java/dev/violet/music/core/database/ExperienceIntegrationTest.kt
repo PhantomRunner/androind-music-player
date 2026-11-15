@@ -110,7 +110,7 @@ class ExperienceIntegrationTest {
             val track = id(1)
             val collections = RoomCollectionRepository(db)
             val playlist = collections.create("Preserved fixture")
-            collections.addTrack(playlist, track)
+            collections.addTracks(playlist, listOf(PlaylistAddItem(track, track)), "fixture")
             collections.setFavourite(track, true)
             val artists = ArtistRepository(db)
             assertEquals(2, artists.credits(track).first().count { it.role == "TRACK" })
@@ -261,21 +261,28 @@ class ExperienceIntegrationTest {
             assertEquals(205, rows.map { it.key }.distinct().size)
             val collections = RoomCollectionRepository(db)
             val playlist = collections.create("Bulk fixture")
-            for (batch in rows.chunked(100)) selection.mutate(
-                BulkAction.ADD_PLAYLIST,
-                batch,
-                playlist,
-                "one-operation",
-            )
-            for (batch in rows.chunked(100)) selection.mutate(
-                BulkAction.ADD_PLAYLIST,
-                batch,
-                playlist,
-                "one-operation",
-            )
+            val items = rows.map { PlaylistAddItem(it.key, it.trackId) }
+            repeat(2) {
+                assertEquals(
+                    PlaylistAddResult.Completed(205, 0, 0),
+                    collections.addTracks(playlist, items, "one-operation"),
+                )
+            }
             assertEquals(205, collections.queue(playlist).size)
-            val duplicates = listOf(rows.first().copy(key = "one"), rows.first().copy(key = "two"))
-            selection.mutate(BulkAction.ADD_PLAYLIST, duplicates, playlist, "duplicate-operation")
+            val duplicateKeys = setOf("one", "two")
+            val duplicates = duplicateKeys.map { PlaylistAddItem(it, rows.first().trackId) }
+            assertEquals(
+                PlaylistAddResult.NeedsConfirmation(duplicateKeys),
+                collections.addTracks(playlist, duplicates, "duplicate-operation"),
+            )
+            repeat(2) {
+                assertEquals(
+                    PlaylistAddResult.Completed(2, 0, 0),
+                    collections.addTracks(
+                        playlist, duplicates, "duplicate-operation", PlaylistDuplicatePolicy.Allow(duplicateKeys),
+                    ),
+                )
+            }
             assertEquals(207, collections.queue(playlist).size)
             val missing = SelectedTrack("missing", "missing", false)
             assertEquals(
@@ -284,7 +291,6 @@ class ExperienceIntegrationTest {
                     BulkAction.ADD_FAVOURITES,
                     listOf(missing),
                     null,
-                    "missing-operation",
                 ),
             )
         }

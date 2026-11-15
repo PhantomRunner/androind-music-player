@@ -4,7 +4,6 @@ import androidx.room.withTransaction
 import androidx.sqlite.db.SimpleSQLiteQuery
 import dev.violet.music.core.database.*
 import dev.violet.music.core.model.*
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.currentCoroutineContext
@@ -51,23 +50,17 @@ class SelectionRepository @Inject constructor(private val database: MusicDatabas
             .selection(trackQuery(filter, limit = size, offset = offset, selection = true))
     }
 
-    /** A bounded transaction; operation/entry identity makes repeated appends idempotent. */
+    /** Applies at most one page of selected items in a transaction. */
     suspend fun mutate(
         action: BulkAction,
         items: List<SelectedTrack>,
         playlistId: String?,
-        operationId: String,
     ): BulkResult {
         require(items.size <= 100)
         return database.withTransaction {
             val dao = database.collectionDao()
             var updated = 0
             var skipped = 0
-            if (
-                action == BulkAction.ADD_PLAYLIST &&
-                    (playlistId == null || dao.findPlaylist(playlistId) == null)
-            )
-                return@withTransaction BulkResult(skipped = items.size)
             for (item in items) {
                 currentCoroutineContext().ensureActive()
                 if (database.libraryDao().findTrack(item.trackId) == null) {
@@ -80,23 +73,6 @@ class SelectionRepository @Inject constructor(private val database: MusicDatabas
                             FavouriteEntity(item.trackId, System.currentTimeMillis())
                         )
                     BulkAction.REMOVE_FAVOURITES -> dao.removeFavourite(item.trackId)
-                    BulkAction.ADD_PLAYLIST -> {
-                        val entryId =
-                            UUID.nameUUIDFromBytes(
-                                    "$operationId:${item.key}".toByteArray(Charsets.UTF_8)
-                                )
-                                .toString()
-                        if (dao.entry(entryId) == null)
-                            dao.insertEntry(
-                                PlaylistEntryEntity(
-                                    entryId,
-                                    requireNotNull(playlistId),
-                                    item.trackId,
-                                    dao.nextPosition(playlistId),
-                                    System.currentTimeMillis(),
-                                )
-                            )
-                    }
                     BulkAction.REMOVE_PLAYLIST -> {
                         val entry = dao.entry(item.key)
                         if (entry == null || entry.playlistId != playlistId) {
@@ -110,10 +86,7 @@ class SelectionRepository @Inject constructor(private val database: MusicDatabas
                 }
                 updated++
             }
-            if (
-                playlistId != null &&
-                    action in listOf(BulkAction.ADD_PLAYLIST, BulkAction.REMOVE_PLAYLIST)
-            )
+            if (playlistId != null && action == BulkAction.REMOVE_PLAYLIST && updated > 0)
                 dao.touch(playlistId, System.currentTimeMillis())
             BulkResult(updated, skipped)
         }

@@ -1,8 +1,17 @@
 package dev.violet.music.feature.collection
 
 import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
+import dev.violet.music.R
 import dev.violet.music.core.model.Track
 import dev.violet.music.core.model.TrackFilter
 import dev.violet.music.feature.player.PlayerViewModel
@@ -19,6 +28,22 @@ class CollectionDialogsState {
     var menuFilter: TrackFilter? = null
     var menuOccurrence: String? = null
     var menuPlaylist: PlaylistMenuContext? = null
+}
+
+@Composable
+fun PlaylistDuplicateDialog(count: Int, onSkip: () -> Unit, onAllow: () -> Unit, onCancel: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.playlist_duplicates)) },
+        text = { Text(pluralStringResource(R.plurals.playlist_duplicate_count, count, count)) },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                Button(onClick = onSkip) { Text(stringResource(R.string.skip_playlist_duplicates)) }
+                TextButton(onClick = onAllow) { Text(stringResource(R.string.allow_playlist_duplicates)) }
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+            }
+        },
+    )
 }
 
 @Composable

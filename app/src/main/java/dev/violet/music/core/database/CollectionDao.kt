@@ -78,7 +78,15 @@ interface CollectionDao {
 
     @Query("DELETE FROM playlists WHERE id = :id") suspend fun deletePlaylist(id: String)
 
-    @Insert suspend fun insertEntry(entry: PlaylistEntryEntity)
+    @Insert suspend fun insertEntries(entries: List<PlaylistEntryEntity>)
+
+    @Query("SELECT id FROM playlist_entries WHERE id IN (:ids)")
+    suspend fun existingEntryIds(ids: List<String>): List<String>
+
+    @Query(
+        "SELECT DISTINCT trackId FROM playlist_entries WHERE playlistId = :id AND trackId IN (:trackIds)"
+    )
+    suspend fun memberTrackIds(id: String, trackIds: List<String>): List<String>
 
     @Query("SELECT * FROM playlist_entries WHERE id = :id")
     suspend fun entry(id: String): PlaylistEntryEntity?

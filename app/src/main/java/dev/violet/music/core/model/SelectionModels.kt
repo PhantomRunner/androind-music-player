@@ -9,7 +9,6 @@ data class SelectionSource(
 )
 
 enum class BulkAction {
-    ADD_PLAYLIST,
     ADD_QUEUE,
     ADD_FAVOURITES,
     REMOVE_FAVOURITES,

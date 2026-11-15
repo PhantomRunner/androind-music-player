@@ -8,11 +8,15 @@ import dev.violet.music.core.data.RoomCollectionRepository
 import dev.violet.music.core.media.DeviceAudio
 import dev.violet.music.core.media.DeviceScanner
 import dev.violet.music.core.media.LibraryIndexer
+import dev.violet.music.core.model.PlaylistAddItem
+import dev.violet.music.core.model.PlaylistAddResult
+import dev.violet.music.core.model.PlaylistDuplicatePolicy
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -43,7 +47,20 @@ class CollectionIntegrationTest {
     @Test
     fun duplicateEntriesReorderAndRemovalKeepContiguousPositions() = runBlocking {
         val id = repository.create(" Test playlist ")
-        listOf(ids[0], ids[1], ids[0]).forEach { repository.addTrack(id, it) }
+        val tracks = listOf(
+            PlaylistAddItem("first", ids[0]),
+            PlaylistAddItem("second", ids[1]),
+            PlaylistAddItem("repeat", ids[0]),
+        )
+        assertEquals(
+            PlaylistAddResult.NeedsConfirmation(setOf("repeat")),
+            repository.addTracks(id, tracks, "original"),
+        )
+        assertTrue(repository.queue(id).isEmpty())
+        assertEquals(
+            PlaylistAddResult.Completed(3, 0, 0),
+            repository.addTracks(id, tracks, "original", PlaylistDuplicatePolicy.Allow(setOf("repeat"))),
+        )
         val original = entries(id)
         assertEquals(3, original.map { it.entryId }.distinct().size)
         assertEquals(listOf(ids[0], ids[1], ids[0]), repository.queue(id).map { it.trackId })
@@ -51,7 +68,7 @@ class CollectionIntegrationTest {
         assertEquals(listOf(original[2].entryId, original[0].entryId, original[1].entryId), entries(id).map { it.entryId })
         repository.removeEntry(original[0].entryId)
         assertEquals(listOf(0, 1), entries(id).map { it.position })
-        repository.addTrack(id, ids[2])
+        repository.addFixtureTrack(id, ids[2])
         assertEquals(listOf(0, 1, 2), entries(id).map { it.position })
         assertEquals("Test playlist", repository.observePlaylist(id).first()?.name)
     }
@@ -60,7 +77,7 @@ class CollectionIntegrationTest {
     fun playlistDeletionKeepsTracksFavouritesAndOtherPlaylists() = runBlocking {
         val first = repository.create("First fixture")
         val second = repository.create("Second fixture")
-        repository.addTrack(first, ids[0]); repository.addTrack(second, ids[0])
+        repository.addFixtureTrack(first, ids[0]); repository.addFixtureTrack(second, ids[0])
         repository.setFavourite(ids[0], true)
         repository.rename(first, "Renamed fixture")
         assertEquals("Renamed fixture", repository.observePlaylist(first).first()?.name)
@@ -74,7 +91,7 @@ class CollectionIntegrationTest {
     @Test
     fun favouritesAndMembershipSurviveFailedAndMissingMediaScans() = runBlocking {
         val playlist = repository.create("Preserved fixture")
-        repository.addTrack(playlist, ids[0]); repository.setFavourite(ids[0], true)
+        repository.addFixtureTrack(playlist, ids[0]); repository.setFavourite(ids[0], true)
         LibraryIndexer(DeviceScanner { batch -> batch(listOf(fixture(2))); throw SecurityException() }, writer).refresh()
         assertEquals(0, database.libraryDao().stats().first().unavailableCount)
         assertEquals(1, entries(playlist).size)
@@ -92,12 +109,41 @@ class CollectionIntegrationTest {
     @Test
     fun concurrentAppendsAreAtomicAndFavouriteWritesIdempotent() = runBlocking {
         val playlist = repository.create("Concurrent fixture")
-        coroutineScope { repeat(20) { launch(Dispatchers.IO) { repository.addTrack(playlist, ids[0]) } } }
-        assertEquals((0..19).toList(), entries(playlist).map { it.position })
+        val results = coroutineScope {
+            List(20) { async(Dispatchers.IO) { repository.addFixtureTrack(playlist, ids[0]) } }.awaitAll()
+        }
+        assertEquals(1, results.count { it == PlaylistAddResult.Completed(1, 0, 0) })
+        assertEquals(19, results.count { it is PlaylistAddResult.NeedsConfirmation })
+        assertEquals(listOf(0), entries(playlist).map { it.position })
         repeat(2) { repository.setFavourite(ids[0], true) }
         assertEquals(listOf(ids[0]), database.libraryDao().queueIds("", null, null, false, true))
         repeat(2) { repository.setFavourite(ids[0], false) }
         assertTrue(database.libraryDao().queueIds("", null, null, false, true).isEmpty())
+    }
+
+    @Test
+    fun confirmationDoesNotApproveNewConflictsAndSkipAddsOnlyNewTracks() = runBlocking {
+        val id = repository.create("Conflict fixture")
+        repository.addFixtureTrack(id, ids[0])
+        val selected = ids.mapIndexed { index, trackId -> PlaylistAddItem("selected-$index", trackId) }
+        assertEquals(
+            PlaylistAddResult.NeedsConfirmation(setOf("selected-0")),
+            repository.addTracks(id, selected, "pending"),
+        )
+        assertEquals(1, entries(id).size)
+        repository.addFixtureTrack(id, ids[1])
+        assertEquals(
+            PlaylistAddResult.NeedsConfirmation(setOf("selected-0", "selected-1")),
+            repository.addTracks(id, selected, "pending", PlaylistDuplicatePolicy.Allow(setOf("selected-0"))),
+        )
+        assertEquals(2, entries(id).size)
+        repeat(2) {
+            assertEquals(
+                PlaylistAddResult.Completed(1, 2, 0),
+                repository.addTracks(id, selected, "pending", PlaylistDuplicatePolicy.Skip),
+            )
+        }
+        assertEquals(ids, repository.queue(id).map { it.trackId })
     }
 
     @Test
@@ -109,7 +155,7 @@ class CollectionIntegrationTest {
             val trackId = requireNotNull(db.libraryDao().findAsset("fixture_volume", 1)).trackId
             var repo = RoomCollectionRepository(db)
             val playlist = repo.create("Persistent fixture")
-            repo.addTrack(playlist, trackId); repo.setFavourite(trackId, true)
+            repo.addFixtureTrack(playlist, trackId); repo.setFavourite(trackId, true)
             val entryId = repo.queue(playlist).single().entryId
             db.close()
             db = Room.databaseBuilder(context, MusicDatabase::class.java, name).build()
@@ -119,6 +165,9 @@ class CollectionIntegrationTest {
             assertTrue(db.libraryDao().track(trackId).first()?.isFavourite == true)
         } finally { db.close(); context.deleteDatabase(name) }
     }
+
+    private suspend fun RoomCollectionRepository.addFixtureTrack(playlistId: String, trackId: String) =
+        addTracks(playlistId, listOf(PlaylistAddItem(trackId, trackId)), UUID.randomUUID().toString())
 
     private suspend fun entries(id: String): List<PlaylistEntryRow> {
         return when (val result = database.collectionDao().entries(id).load(PagingSource.LoadParams.Refresh<Int>(null, 50, false))) {

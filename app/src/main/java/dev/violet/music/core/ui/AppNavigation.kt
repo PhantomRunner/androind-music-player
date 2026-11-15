@@ -266,6 +266,8 @@ fun AppNavigation(
                 filter,
                 collections.addTrackCandidates,
                 selection,
+                collections,
+                entry.id,
                 collections::updateAddTracksQuery,
                 onPermission,
                 onAndroidSettings,

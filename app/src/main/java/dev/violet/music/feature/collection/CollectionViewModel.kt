@@ -6,7 +6,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.violet.music.core.data.CollectionRepository
+import dev.violet.music.core.model.PlaylistAddItem
+import dev.violet.music.core.model.PlaylistAddResult
+import dev.violet.music.core.model.PlaylistDuplicatePolicy
 import dev.violet.music.core.model.PlaylistSummary
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -21,6 +25,28 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class PlaylistUiState(val loading: Boolean = true, val playlist: PlaylistSummary? = null)
+
+data class PlaylistAddOrigin(val selectionContext: String, val pickerEntryId: String? = null)
+
+data class PlaylistAddCompletion(
+    val result: PlaylistAddResult.Completed,
+    val origin: PlaylistAddOrigin?,
+)
+
+data class PlaylistAddUiState(
+    val working: Boolean = false,
+    val duplicateCount: Int = 0,
+    val completion: PlaylistAddCompletion? = null,
+) {
+    val pending: Boolean get() = working || duplicateCount > 0
+}
+
+private data class PlaylistAddRequest(
+    val playlistId: String,
+    val items: List<PlaylistAddItem>,
+    val operationId: String,
+    val origin: PlaylistAddOrigin?,
+)
 
 @HiltViewModel
 @OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -38,6 +64,10 @@ constructor(
     val error = mutableError.asStateFlow()
     private val mutableCoverBusy = MutableStateFlow(false)
     val coverBusy = mutableCoverBusy.asStateFlow()
+    private val mutableAddition = MutableStateFlow(PlaylistAddUiState())
+    val addition = mutableAddition.asStateFlow()
+    private var addRequest: PlaylistAddRequest? = null
+    private var duplicateKeys = emptySet<String>()
     val addTracksQuery = saved.getStateFlow("playlist.add.query", "")
     val addTracksFilter =
         addTracksQuery
@@ -120,7 +150,61 @@ constructor(
 
     fun favourite(id: String, value: Boolean) = edit { repository.setFavourite(id, value) }
 
-    fun add(playlistId: String, trackId: String) = edit { repository.addTrack(playlistId, trackId) }
+    fun add(playlistId: String, trackId: String) =
+        add(playlistId, listOf(PlaylistAddItem(trackId, trackId)), null)
+
+    fun add(playlistId: String, items: List<PlaylistAddItem>, origin: PlaylistAddOrigin?) {
+        if (addRequest != null || mutableAddition.value.completion != null || items.isEmpty()) return
+        addRequest = PlaylistAddRequest(playlistId, items, UUID.randomUUID().toString(), origin)
+        performAdd(PlaylistDuplicatePolicy.Check)
+    }
+
+    fun resolveDuplicates(allow: Boolean) {
+        if (duplicateKeys.isEmpty() || mutableAddition.value.working) return
+        performAdd(
+            if (allow) PlaylistDuplicatePolicy.Allow(duplicateKeys) else PlaylistDuplicatePolicy.Skip
+        )
+    }
+
+    fun cancelAddition() {
+        if (mutableAddition.value.working) return
+        addRequest = null
+        duplicateKeys = emptySet()
+        mutableAddition.value = PlaylistAddUiState()
+    }
+
+    private fun performAdd(policy: PlaylistDuplicatePolicy) {
+        val request = addRequest ?: return
+        mutableAddition.value = PlaylistAddUiState(working = true)
+        viewModelScope.launch {
+            try {
+                when (val result = repository.addTracks(request.playlistId, request.items, request.operationId, policy)) {
+                    is PlaylistAddResult.NeedsConfirmation -> {
+                        duplicateKeys = result.keys
+                        mutableAddition.value = PlaylistAddUiState(duplicateCount = result.keys.size)
+                    }
+                    is PlaylistAddResult.Completed -> {
+                        addRequest = null
+                        duplicateKeys = emptySet()
+                        mutableAddition.value = PlaylistAddUiState(
+                            completion = PlaylistAddCompletion(result, request.origin)
+                        )
+                    }
+                    PlaylistAddResult.MissingPlaylist -> {
+                        mutableAddition.value = PlaylistAddUiState()
+                        cancelAddition()
+                        mutableError.value = true
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                mutableAddition.value = PlaylistAddUiState()
+                cancelAddition()
+                mutableError.value = true
+            }
+        }
+    }
 
     fun remove(entryId: String) = edit { repository.removeEntry(entryId) }
 

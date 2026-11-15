@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.violet.music.core.data.SelectionRepository
 import dev.violet.music.core.model.*
 import dev.violet.music.core.playback.PlaybackController
-import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -118,6 +117,17 @@ constructor(private val repository: SelectionRepository, private val playback: P
         state.value = state.value.copy(processed = 0, skipped = 0, error = false)
     }
 
+    fun playlistAddItems(context: String): List<PlaylistAddItem> {
+        val current = state.value
+        if (source?.context != context || current.loading || current.updating || current.running)
+            return emptyList()
+        return current.selected.values.map { PlaylistAddItem(it.key, it.trackId) }
+    }
+
+    fun finishPlaylistAdd(context: String) {
+        if (source?.context == context) clear()
+    }
+
     fun selectAll() = load(all = true)
 
     private fun load(all: Boolean) {
@@ -161,7 +171,6 @@ constructor(private val repository: SelectionRepository, private val playback: P
         )
             return
         val selected = state.value.selected.values.toList()
-        val operation = UUID.randomUUID().toString()
         generation++
         val request = generation
         state.value = state.value.copy(running = true, processed = 0, skipped = 0, error = false)
@@ -186,7 +195,7 @@ constructor(private val repository: SelectionRepository, private val playback: P
                                         playback.enqueue(available.map { it.trackId })
                                     }
                                 BulkResult(added, input.size - added)
-                            } else repository.mutate(action, input, playlistId, operation)
+                            } else repository.mutate(action, input, playlistId)
                         if (generation != request) return@launch
                         state.value =
                             state.value.copy(

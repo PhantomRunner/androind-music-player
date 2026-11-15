@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -37,9 +38,11 @@ import dev.violet.music.core.playback.PlaybackError
 import dev.violet.music.feature.collection.CollectionDialogs
 import dev.violet.music.feature.collection.CollectionDialogsState
 import dev.violet.music.feature.collection.CollectionViewModel
+import dev.violet.music.feature.collection.PlaylistDuplicateDialog
 import dev.violet.music.feature.library.LibraryViewModel
 import dev.violet.music.feature.player.MiniPlayer
 import dev.violet.music.feature.player.PlayerViewModel
+import kotlinx.coroutines.launch
 
 private data class Destination(val route: String, val label: Int, val icon: ImageVector)
 
@@ -64,8 +67,10 @@ fun VioletApp(
 ) {
     val playback by playerViewModel.uiState.collectAsStateWithLifecycle()
     val collectionError by collectionViewModel.error.collectAsStateWithLifecycle()
+    val addition by collectionViewModel.addition.collectAsStateWithLifecycle()
     val selection by selectionViewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     LaunchedEffect(viewModel) {
         viewModel.preferenceErrors.collect {
@@ -130,6 +135,32 @@ fun VioletApp(
         onCreated = { navController.navigate("playlist/$it") },
     )
     val entry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(addition.completion) {
+        val completion = addition.completion ?: return@LaunchedEffect
+        completion.origin?.let { origin ->
+            selectionViewModel.finishPlaylistAdd(origin.selectionContext)
+            if (origin.pickerEntryId != null && navController.currentBackStackEntry?.id == origin.pickerEntryId)
+                navController.popBackStack()
+        }
+        val result = completion.result
+        val message = if (result.missing == 0) {
+            context.getString(R.string.playlist_add_finished, result.added, result.duplicatesSkipped)
+        } else {
+            context.getString(
+                R.string.playlist_add_finished_with_missing, result.added, result.duplicatesSkipped, result.missing,
+            )
+        }
+        collectionViewModel.cancelAddition()
+        scope.launch { snackbar.showSnackbar(message) }
+    }
+    if (addition.duplicateCount > 0) {
+        PlaylistDuplicateDialog(
+            addition.duplicateCount,
+            onSkip = { collectionViewModel.resolveDuplicates(allow = false) },
+            onAllow = { collectionViewModel.resolveDuplicates(allow = true) },
+            onCancel = collectionViewModel::cancelAddition,
+        )
+    }
     val route = entry?.destination?.route ?: "home"
     val isCollection =
         route.startsWith("album/") ||
@@ -159,7 +190,10 @@ fun VioletApp(
                             isCollection ||
                                 route in listOf("settings", "now-playing", "queue", "stats")
                         )
-                            IconButton(onClick = { navController.popBackStack() }) {
+                            IconButton(
+                                onClick = { navController.popBackStack() },
+                                enabled = !route.endsWith("/add-tracks") || !addition.pending,
+                            ) {
                                 Icon(VioletIcons.Back, stringResource(R.string.back))
                             }
                     },

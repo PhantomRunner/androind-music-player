@@ -175,6 +175,16 @@
     <string name="add_tracks">Add tracks</string>
     <string name="add_tracks_description">Choose songs from your library to add to this playlist.</string>
     <string name="search_tracks_to_add">Search tracks to add</string>
+    <string name="checking_playlist_tracks">Checking playlist tracks…</string>
+    <string name="playlist_duplicates">Repeated tracks</string>
+    <plurals name="playlist_duplicate_count">
+        <item quantity="one">%d selected entry repeats a track in this playlist or in your selection.</item>
+        <item quantity="other">%d selected entries repeat tracks in this playlist or in your selection.</item>
+    </plurals>
+    <string name="skip_playlist_duplicates">Skip duplicates</string>
+    <string name="allow_playlist_duplicates">Add with duplicates</string>
+    <string name="playlist_add_finished">%1$d added · %2$d duplicates skipped</string>
+    <string name="playlist_add_finished_with_missing">%1$d added · %2$d duplicates skipped · %3$d missing</string>
     <string name="add_selected_tracks">Add selected (%1$d)</string>
     <string name="empty_playlist">Make room for your favourites</string>
     <string name="empty_playlists_title">A collection for every mood</string>

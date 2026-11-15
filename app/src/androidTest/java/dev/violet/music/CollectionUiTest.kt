@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -111,6 +112,22 @@ class CollectionUiTest {
             compose.onNodeWithText("Save").performClick()
             waitForText(name)
             compose.onNodeWithText(name).assertIsDisplayed()
+            val playlistId = database.collectionDao().recentPlaylists().first().single { it.name == name }.id
+            withTimeout(10_000) {
+                while (database.collectionDao().entryCount(playlistId) != 1) delay(50)
+            }
+            scrollTo(hasContentDescription(options))
+            compose.onNodeWithContentDescription(options).performClick()
+            waitForText("Add to playlist")
+            compose.onNodeWithText("Add to playlist").performClick()
+            compose.onNode(hasText(name) and hasAnyAncestor(isDialog())).performClick()
+            waitForText("Repeated tracks")
+            assertEquals(1, database.collectionDao().entryCount(playlistId))
+            compose.onNodeWithText("Add with duplicates").performClick()
+            withTimeout(10_000) {
+                while (database.collectionDao().entryCount(playlistId) != 2) delay(50)
+            }
+            scrollTo(hasText("Rename"))
             compose.onNodeWithText("Rename").performClick()
             compose.onNodeWithText("Playlist name").performTextReplacement("$name renamed")
             compose.onNodeWithText("Save").performClick()

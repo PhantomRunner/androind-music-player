@@ -8,12 +8,17 @@ import dev.violet.music.core.database.FavouriteEntity
 import dev.violet.music.core.database.MusicDatabase
 import dev.violet.music.core.database.PlaylistEntity
 import dev.violet.music.core.database.PlaylistEntryEntity
+import dev.violet.music.core.model.PlaylistAddItem
+import dev.violet.music.core.model.PlaylistAddResult
+import dev.violet.music.core.model.PlaylistDuplicatePolicy
 import dev.violet.music.core.model.PlaylistEntry
 import dev.violet.music.core.model.PlaylistQueueItem
 import dev.violet.music.core.model.validatedPlaylistName
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.map
 
 @Singleton
@@ -74,19 +79,66 @@ class RoomCollectionRepository @Inject constructor(private val database: MusicDa
         else dao.removeFavourite(trackId)
     }
 
-    override suspend fun addTrack(playlistId: String, trackId: String) {
-        database.withTransaction {
-            dao.insertEntry(
-                PlaylistEntryEntity(
-                    UUID.randomUUID().toString(),
-                    playlistId,
-                    trackId,
-                    dao.nextPosition(playlistId),
-                    System.currentTimeMillis(),
-                )
-            )
-            dao.touch(playlistId, System.currentTimeMillis())
+    override suspend fun addTracks(
+        playlistId: String,
+        items: List<PlaylistAddItem>,
+        operationId: String,
+        policy: PlaylistDuplicatePolicy,
+    ): PlaylistAddResult = database.withTransaction {
+        if (dao.findPlaylist(playlistId) == null) return@withTransaction PlaylistAddResult.MissingPlaylist
+
+        val seen = mutableSetOf<String>()
+        val conflicts = mutableSetOf<String>()
+        val additions = mutableListOf<Pair<String, String>>()
+        var applied = 0
+        var missing = 0
+        for (batch in items.distinctBy { it.key }.chunked(100)) {
+            currentCoroutineContext().ensureActive()
+            val entryIds = batch.map { item ->
+                UUID.nameUUIDFromBytes("$playlistId:$operationId:${item.key}".toByteArray(Charsets.UTF_8))
+                    .toString()
+            }
+            val existing = dao.existingEntryIds(entryIds).toHashSet()
+            val trackIds = batch.map { it.trackId }.distinct()
+            val known = database.libraryDao().identities(trackIds).mapTo(mutableSetOf()) { it.trackId }
+            seen.addAll(dao.memberTrackIds(playlistId, trackIds))
+
+            for ((index, item) in batch.withIndex()) {
+                val entryId = entryIds[index]
+                if (entryId in existing) {
+                    applied++
+                    continue
+                }
+                if (item.trackId !in known) {
+                    missing++
+                    continue
+                }
+                if (!seen.add(item.trackId)) {
+                    conflicts += item.key
+                    if (policy == PlaylistDuplicatePolicy.Skip) continue
+                }
+                additions += entryId to item.trackId
+            }
         }
+        val approved = (policy as? PlaylistDuplicatePolicy.Allow)?.keys.orEmpty()
+        if (policy != PlaylistDuplicatePolicy.Skip && conflicts.any { it !in approved }) {
+            return@withTransaction PlaylistAddResult.NeedsConfirmation(conflicts.toSet())
+        }
+        if (additions.isNotEmpty()) {
+            var position = dao.nextPosition(playlistId)
+            val now = System.currentTimeMillis()
+            for (batch in additions.chunked(100)) {
+                dao.insertEntries(batch.map { (id, trackId) ->
+                    PlaylistEntryEntity(id, playlistId, trackId, position++, now)
+                })
+            }
+            dao.touch(playlistId, now)
+        }
+        PlaylistAddResult.Completed(
+            added = applied + additions.size,
+            duplicatesSkipped = if (policy == PlaylistDuplicatePolicy.Skip) conflicts.size else 0,
+            missing = missing,
+        )
     }
 
     override suspend fun removeEntry(entryId: String) {
