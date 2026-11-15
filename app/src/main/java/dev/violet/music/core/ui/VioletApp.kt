@@ -63,6 +63,7 @@ fun VioletApp(
     onAndroidSettings: () -> Unit,
 ) {
     val playback by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val artworkTint by playerViewModel.artworkTint.collectAsStateWithLifecycle()
     val collectionError by collectionViewModel.error.collectAsStateWithLifecycle()
     val addition by collectionViewModel.addition.collectAsStateWithLifecycle()
     val selection by selectionViewModel.uiState.collectAsStateWithLifecycle()
@@ -164,6 +165,7 @@ fun VioletApp(
         )
     }
     val route = entry?.destination?.route ?: "home"
+    val fullScreenPlayer = route == "now-playing" || route == "queue"
     val tab = mainTabs.firstOrNull { it.route == route }
     var savedTab by rememberSaveable { mutableStateOf("home") }
     LaunchedEffect(tab) { if (tab != null) savedTab = tab.route }
@@ -173,7 +175,7 @@ fun VioletApp(
         modifier = Modifier.fillMaxSize().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            if (route != "now-playing")
+            if (!fullScreenPlayer)
                 TopAppBar(
                     title = {
                         if (tab != null) {
@@ -226,9 +228,9 @@ fun VioletApp(
                 )
         },
         bottomBar = {
-            if (route != "now-playing" && !keyboardVisible && !isPicker) {
+            if (!fullScreenPlayer && !keyboardVisible && !isPicker) {
                 Column {
-                    MiniPlayer(playback, playerViewModel.controller) {
+                    MiniPlayer(playback, playerViewModel.controller, artworkTint) {
                         navController.navigate("now-playing") { launchSingleTop = true }
                     }
                     VioletNavigationBar(tab?.route ?: savedTab) { target ->
@@ -245,6 +247,7 @@ fun VioletApp(
                 viewModel,
                 searchViewModel,
                 playerViewModel,
+                artworkTint,
                 collectionViewModel,
                 homeViewModel,
                 statsViewModel,

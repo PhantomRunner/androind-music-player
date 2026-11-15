@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -79,7 +78,7 @@ constructor(
                 SharingStarted.WhileSubscribed(5_000),
                 dev.violet.music.core.model.TrackFilter(query = addTracksQuery.value),
             )
-    val addTrackCandidates = addTracksFilter.flatMapLatest(library::tracks).cachedIn(viewModelScope)
+    fun addTrackCandidates(filter: dev.violet.music.core.model.TrackFilter) = library.tracks(filter)
 
     fun updateAddTracksQuery(value: String) {
         saved["playlist.add.query"] = value

@@ -301,7 +301,8 @@ constructor(
         return added
     }
 
-    override fun toggleShuffle() = command { shuffleModeEnabled = !shuffleModeEnabled }
+    // Publish the session's shuffle traversal before using it for the next queue edit.
+    override fun toggleShuffle() = queueCommand("shuffle", "")
 
     override fun cycleRepeat() = command {
         repeatMode =

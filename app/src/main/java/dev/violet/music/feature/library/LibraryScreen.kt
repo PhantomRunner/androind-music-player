@@ -20,6 +20,7 @@ import dev.violet.music.core.model.DisplayMode
 import dev.violet.music.core.ui.*
 import dev.violet.music.core.ui.theme.VioletLayout
 import dev.violet.music.feature.collection.PlaylistRow
+import dev.violet.music.feature.selection.SelectionSourceEffect
 import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -62,10 +63,17 @@ fun LibraryScreen(
     fun toggle(track: Track) {
         selection?.toggle(SelectedTrack(track.id, track.id, track.availability == "LOCAL"))
     }
-    DisposableEffect(Unit) { onDispose { selection?.leave("library") } }
-    LaunchedEffect(category) {
-        if (category != LibraryCategory.ALL && category != LibraryCategory.TRACKS)
-            selection?.cancel()
+    val canSelect = category == LibraryCategory.ALL || category == LibraryCategory.TRACKS
+    val selectionSource = SelectionSource(
+        "library",
+        TrackFilter(
+            query = state.libraryQuery,
+            sort = state.preferences.trackSort(),
+            periodStart = state.preferences.period.start(),
+        ),
+    )
+    if (canSelect && selection != null) {
+        SelectionSourceEffect(selection, selectionSource)
     }
     holder.SaveableStateProvider(category.name) {
         val scroll = rememberLazyGridState()
@@ -119,24 +127,13 @@ fun LibraryScreen(
                     }
                 }
             }
-            if (
-                selection != null &&
-                    collections != null &&
-                    (category == LibraryCategory.ALL || category == LibraryCategory.TRACKS)
-            )
+            if (selection != null && collections != null && canSelect)
                 item("selection", span = { GridItemSpan(maxLineSpan) }) {
                     dev.violet.music.feature.selection.SelectionToolbar(
                         selection,
-                        SelectionSource(
-                            "library",
-                            TrackFilter(
-                                query = state.libraryQuery,
-                                sort = state.preferences.trackSort(),
-                                periodStart = state.preferences.period.start(),
-                            ),
-                        ),
+                        selectionSource,
                         collections,
-                        clearOnDispose = false,
+                        managesSource = false,
                     )
                 }
             libraryNotices(state, onPermission, onSettings, onRefresh)

@@ -19,15 +19,12 @@ fun SelectionToolbar(
     viewModel: SelectionViewModel,
     source: SelectionSource,
     collections: CollectionViewModel,
-    clearOnDispose: Boolean = true,
+    managesSource: Boolean = true,
     @androidx.annotation.StringRes startLabel: Int = R.string.select_tracks,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val addition by collections.addition.collectAsStateWithLifecycle()
-    LaunchedEffect(source) { viewModel.source(source) }
-    DisposableEffect(source.context) {
-        onDispose { if (clearOnDispose) viewModel.leave(source.context) }
-    }
+    if (managesSource) SelectionSourceEffect(viewModel, source)
     BackHandler(state.active) { if (!addition.pending) viewModel.cancel() }
     val busy = state.running || addition.pending
     var choosing by remember { mutableStateOf(false) }

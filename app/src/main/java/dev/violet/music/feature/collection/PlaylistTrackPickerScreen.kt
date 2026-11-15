@@ -1,7 +1,6 @@
 package dev.violet.music.feature.collection
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -10,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import dev.violet.music.R
@@ -20,6 +20,7 @@ import dev.violet.music.core.model.TrackFilter
 import dev.violet.music.core.ui.*
 import dev.violet.music.feature.library.LibraryUiState
 import dev.violet.music.feature.selection.SelectionViewModel
+import dev.violet.music.feature.selection.SelectionSourceEffect
 import kotlinx.coroutines.flow.Flow
 
 /** Adds directly to the destination playlist without changing the active playback queue. */
@@ -45,22 +46,14 @@ fun PlaylistTrackPickerScreen(
     val addition by collections.addition.collectAsStateWithLifecycle()
     val source =
         remember(playlistId, filter) { SelectionSource("playlist-add:$playlistId", filter) }
-    val activity = LocalActivity.current
-    LaunchedEffect(source) {
-        selection.source(source)
-        selection.begin()
-    }
-    DisposableEffect(source.context) {
-        onDispose {
-            if (activity?.isChangingConfigurations != true) selection.leave(source.context)
-        }
-    }
+    SelectionSourceEffect(selection, source, startSelecting = true)
     BackHandler { if (!addition.pending) onClose() }
-    val busy = addition.pending || state.loading || state.updating || query != filter.query
+    val queryPending = query != filter.query
+    val busy = state.source != source || !state.active || addition.pending || state.loading || state.updating ||
+        queryPending || items.loadState.refresh is LoadState.Loading
     val playlist = header.playlist
-    fun toggle(track: Track) {
-        if (!busy)
-            selection.toggle(SelectedTrack(track.id, track.id, track.availability == "LOCAL"))
+    val toggle: (Track) -> Unit = { track ->
+        selection.toggle(SelectedTrack(track.id, track.id, track.availability == "LOCAL"), source)
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         LazyColumn(
@@ -103,14 +96,17 @@ fun PlaylistTrackPickerScreen(
                     }
                 }
                 libraryNotices(library, onPermission, onSettings, onRefresh)
-                pagedTracks(
-                    items,
-                    emptySearch = query.isNotBlank(),
-                    selected = state.selected.keys,
-                    selecting = true,
-                    onToggle = ::toggle,
-                    onPlay = ::toggle,
-                )
+                if (!queryPending) {
+                    pagedTracks(
+                        items,
+                        emptySearch = query.isNotBlank(),
+                        selected = state.selected.keys,
+                        selecting = true,
+                        rowEnabled = !busy,
+                        onToggle = toggle,
+                        onPlay = toggle,
+                    )
+                }
             }
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())

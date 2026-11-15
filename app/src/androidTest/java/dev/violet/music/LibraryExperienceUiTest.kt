@@ -74,7 +74,6 @@ class LibraryExperienceUiTest {
         compose.onNode(hasText("Tracks") and hasClickAction()).performClick()
         compose.onNodeWithText("Search your library").performTextReplacement(query)
         compose.onNodeWithText("Search your library").performImeAction()
-        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(5)
         compose.waitUntil(10_000) {
             compose.onAllNodesWithText("UI test fixture 000").fetchSemanticsNodes().isNotEmpty()
         }
@@ -188,24 +187,26 @@ class LibraryExperienceUiTest {
             }
             val beforeDrag = player.uiState.value.queue.map { it.occurrenceId }
             compose.onNodeWithText(title).performClick()
+            scroll(hasContentDescription("Queue"))
             compose.onNodeWithContentDescription("Queue").performClick()
             compose.mainClock.advanceTimeBy(500)
-            val handle =
+            compose.onNodeWithText("Up next").assertIsDisplayed()
+            val handles =
                 compose
                     .onAllNodesWithContentDescription(
                         "Drag to reorder $title",
                         useUnmergedTree = true,
                     )
-                    .onFirst()
-            handle.performTouchInput {
+            val distance = handles[1].fetchSemanticsNode().boundsInRoot.center.y -
+                handles[0].fetchSemanticsNode().boundsInRoot.center.y
+            handles[0].performTouchInput {
                 val start = center
                 swipe(
                     curve = { time ->
                         start +
                             Offset(
                                 0f,
-                                height *
-                                    3f *
+                                distance *
                                     ((time - 650).coerceAtLeast(0) / 350f).coerceIn(0f, 1f),
                             )
                     },
@@ -227,6 +228,8 @@ class LibraryExperienceUiTest {
             }
             assertTrue(player.uiState.value.isPlaying)
             assertEquals(beforeDrag[0], player.uiState.value.current?.occurrenceId)
+            compose.onNodeWithText("Show earlier tracks (1)").assertIsDisplayed().performClick()
+            compose.onNodeWithText("Hide earlier tracks (1)").assertIsDisplayed()
             compose.onNodeWithContentDescription("Go back").performClick()
             compose.onNodeWithContentDescription("Go back").performClick()
             compose.onNodeWithText("UI test fixture 035").assertIsDisplayed()

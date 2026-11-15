@@ -1,6 +1,5 @@
 package dev.violet.music.feature.collection
 
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +29,7 @@ import dev.violet.music.core.model.SelectionSource
 import dev.violet.music.core.ui.*
 import dev.violet.music.core.ui.theme.VioletLayout
 import dev.violet.music.feature.selection.SelectionToolbar
+import dev.violet.music.feature.selection.SelectionSourceEffect
 import dev.violet.music.feature.selection.SelectionViewModel
 import kotlinx.coroutines.flow.Flow
 
@@ -59,13 +59,7 @@ fun PlaylistScreen(
     val items = entries.collectAsLazyPagingItems()
     val selected by selection.uiState.collectAsStateWithLifecycle()
     val source = SelectionSource("playlist:$id", playlistId = id, playlistFilter = filter)
-    val activity = LocalActivity.current
-    LaunchedEffect(source) { selection.source(source) }
-    DisposableEffect(id) {
-        onDispose {
-            if (activity?.isChangingConfigurations != true) selection.leave(source.context)
-        }
-    }
+    SelectionSourceEffect(selection, source)
 
     var rename by rememberSaveable { mutableStateOf(false) }
     var delete by rememberSaveable { mutableStateOf(false) }
@@ -149,7 +143,7 @@ fun PlaylistScreen(
                                 selection,
                                 source,
                                 collections,
-                                clearOnDispose = false,
+                                managesSource = false,
                                 startLabel = R.string.select_playlist_tracks,
                             )
                         }

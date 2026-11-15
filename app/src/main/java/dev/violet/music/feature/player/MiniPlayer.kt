@@ -1,10 +1,6 @@
 package dev.violet.music.feature.player
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -14,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -24,17 +22,22 @@ import dev.violet.music.core.ui.Artwork
 import dev.violet.music.core.ui.PlaybackIcons
 
 @Composable
-fun MiniPlayer(state: PlaybackUiState, controller: PlaybackController, onOpen: () -> Unit) {
+fun MiniPlayer(state: PlaybackUiState, controller: PlaybackController, tint: Int, onOpen: () -> Unit) {
     val current = state.current ?: return
-    Surface(onClick = onOpen, color = MaterialTheme.colorScheme.surfaceVariant) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+        color = lerp(colors.surfaceVariant, Color(tint), 0.52f),
+        shape = MaterialTheme.shapes.large,
+    ) {
         Column {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 8.dp, end = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Artwork(current.artworkUri, 48.dp, revision = current.artworkVersion)
-                Column(Modifier.weight(1f)) {
+                Artwork(current.artworkUri, 42.dp, revision = current.artworkVersion)
+                Column(Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 6.dp)) {
                     Text(
                         current.title,
                         maxLines = 1,
@@ -45,7 +48,8 @@ fun MiniPlayer(state: PlaybackUiState, controller: PlaybackController, onOpen: (
                         current.artist,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
                     )
                 }
                 IconButton(onClick = controller::togglePlay, enabled = state.connected) {
@@ -58,14 +62,13 @@ fun MiniPlayer(state: PlaybackUiState, controller: PlaybackController, onOpen: (
                     Icon(PlaybackIcons.Next, stringResource(R.string.next))
                 }
             }
-            LinearProgressIndicator(
-                progress = {
-                    if (state.durationMs > 0)
-                        (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f)
-                    else 0f
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (state.durationMs > 0) {
+                LinearProgressIndicator(
+                    progress = { (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                    trackColor = colors.outline.copy(alpha = 0.45f),
+                )
+            }
         }
     }
 }

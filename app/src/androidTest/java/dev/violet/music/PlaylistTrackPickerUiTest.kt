@@ -1,7 +1,9 @@
 package dev.violet.music
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,6 +11,7 @@ import dev.violet.music.core.database.ALL_MIGRATIONS
 import dev.violet.music.core.database.MusicDatabase
 import dev.violet.music.core.database.RoomCatalogueWriter
 import dev.violet.music.core.media.DeviceAudio
+import dev.violet.music.feature.selection.SelectionViewModel
 import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -76,10 +79,10 @@ class PlaylistTrackPickerUiTest {
                 waitForText("Search tracks to add")
                 compose.onNodeWithText("Search tracks to add").performTextReplacement("$prefix 000")
                 compose.onNodeWithText("Search tracks to add").performImeAction()
-                waitForSelectionReady()
-                val firstTrack = hasText("$prefix 000") and !hasSetTextAction()
+                waitForSelectionReady("$prefix 000")
+                val firstTrack = hasText("$prefix 000") and hasClickAction() and !hasSetTextAction()
                 scrollTo(firstTrack)
-                compose.onNode(firstTrack).performClick()
+                compose.onNode(firstTrack).assertIsEnabled().performSemanticsAction(SemanticsActions.OnClick)
                 waitForText("Add selected (1)")
                 compose.onNodeWithText("Cancel").performClick()
                 waitForPickerToClose()
@@ -90,7 +93,7 @@ class PlaylistTrackPickerUiTest {
                 waitForText("Search tracks to add")
                 compose.onNodeWithText("Search tracks to add").performTextReplacement(prefix)
                 compose.onNodeWithText("Search tracks to add").performImeAction()
-                waitForSelectionReady()
+                waitForSelectionReady(prefix)
                 compose.onNodeWithText("Select all").performClick()
                 waitForText("Add selected (65)")
                 compose.activityRule.scenario.recreate()
@@ -110,9 +113,8 @@ class PlaylistTrackPickerUiTest {
                 waitForText("Search tracks to add")
                 compose.onNodeWithText("Search tracks to add").performTextReplacement("$prefix 000")
                 compose.onNodeWithText("Search tracks to add").performImeAction()
-                waitForSelectionReady()
-                scrollTo(firstTrack)
-                compose.onNode(firstTrack).performClick()
+                waitForSelectionReady("$prefix 000")
+                compose.onNodeWithText("Select all").performClick()
                 waitForText("Add selected (1)")
                 compose.onNodeWithText("Add selected (1)").performClick()
                 waitForText("Repeated tracks")
@@ -126,13 +128,30 @@ class PlaylistTrackPickerUiTest {
                 scrollTo(hasText("Find in playlist"))
                 compose.onNodeWithText("Find in playlist").performTextReplacement("$prefix 042")
                 compose.onNodeWithText("Find in playlist").performImeAction()
-                waitForText("$prefix 042")
+                lateinit var selection: SelectionViewModel
+                compose.activityRule.scenario.onActivity {
+                    selection = ViewModelProvider(it)[SelectionViewModel::class.java]
+                }
+                compose.waitUntil(10_000) {
+                    selection.uiState.value.source?.playlistFilter?.query == "$prefix 042"
+                }
                 scrollTo(hasText("Select playlist tracks"))
-                compose.onNodeWithText("Select playlist tracks").performClick()
-                waitForText("0 selected")
+                compose.onNodeWithText("Select playlist tracks")
+                    .assertIsEnabled()
+                    .performSemanticsAction(SemanticsActions.OnClick)
+                scrollTo(hasText("0 selected"))
+                compose.onNodeWithText("0 selected").assertIsDisplayed()
                 scrollTo(hasText("Select all"))
-                compose.onNodeWithText("Select all").performClick()
-                waitForText("1 selected")
+                compose.onNodeWithText("Select all")
+                    .assertIsEnabled()
+                    .performSemanticsAction(SemanticsActions.OnClick)
+                compose.waitUntil(10_000) {
+                    val state = selection.uiState.value
+                    !state.loading && state.selected.values.singleOrNull()?.trackId == ids[42]
+                }
+                scrollTo(hasText("1 selected"))
+                compose.onNodeWithText("1 selected").assertIsDisplayed()
+                scrollTo(hasText("Cancel"))
                 compose.onNodeWithText("Cancel").performClick()
                 assertEquals(ids, database.collectionDao().queue(id).map { it.trackId })
             } finally {
@@ -165,12 +184,14 @@ class PlaylistTrackPickerUiTest {
         }
     }
 
-    private fun waitForSelectionReady() {
+    private fun waitForSelectionReady(query: String) {
+        lateinit var selection: SelectionViewModel
+        compose.activityRule.scenario.onActivity {
+            selection = ViewModelProvider(it)[SelectionViewModel::class.java]
+        }
         compose.waitUntil(10_000) {
-            compose
-                .onAllNodes(hasText("Select all") and isEnabled())
-                .fetchSemanticsNodes()
-                .isNotEmpty()
+            selection.uiState.value.source?.filter?.query == query &&
+                compose.onAllNodes(hasText("Select all") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

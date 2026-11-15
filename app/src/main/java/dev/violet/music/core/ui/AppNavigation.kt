@@ -30,6 +30,7 @@ fun AppNavigation(
     library: LibraryViewModel,
     search: SearchViewModel,
     player: PlayerViewModel,
+    artworkTint: Int,
     collections: CollectionViewModel,
     home: HomeViewModel,
     stats: StatsViewModel,
@@ -42,7 +43,6 @@ fun AppNavigation(
     val state by library.uiState.collectAsStateWithLifecycle()
     val playback by player.uiState.collectAsStateWithLifecycle()
     val currentTrack by player.currentTrack.collectAsStateWithLifecycle()
-    val tint by player.artworkTint.collectAsStateWithLifecycle()
     val coverBusy by collections.coverBusy.collectAsStateWithLifecycle()
     fun album(key: String, title: String) {
         nav.navigate("album/${Uri.encode(key)}/${Uri.encode(title)}") { launchSingleTop = true }
@@ -274,13 +274,14 @@ fun AppNavigation(
                     .collectAsStateWithLifecycle(PlaylistUiState())
             val query by collections.addTracksQuery.collectAsStateWithLifecycle()
             val filter by collections.addTracksFilter.collectAsStateWithLifecycle()
+            val candidates = remember(filter) { collections.addTrackCandidates(filter) }
             PlaylistTrackPickerScreen(
                 id,
                 header,
                 state,
                 query,
                 filter,
-                collections.addTrackCandidates,
+                candidates,
                 selection,
                 collections,
                 entry.id,
@@ -303,10 +304,11 @@ fun AppNavigation(
                 player.controller,
                 currentTrack,
                 { onTrackMenu(it, null, playback.current?.occurrenceId) },
+                onFavourite = { collections.favourite(it.id, !it.isFavourite) },
                 onBack = { nav.popBackStack() },
                 onArtist = ::artist,
                 credits = player.credits,
-                tint = tint,
+                tint = artworkTint,
             ) {
                 nav.navigate("queue") { launchSingleTop = true }
             }
@@ -315,6 +317,7 @@ fun AppNavigation(
             QueueScreen(
                 playback,
                 player.controller,
+                onBack = { nav.popBackStack() },
                 onMenu = { item ->
                     player.trackMenu(item.id) { onTrackMenu(it, null, item.occurrenceId) }
                 },

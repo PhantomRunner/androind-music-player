@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -87,21 +88,27 @@ fun TrackRow(
     onLongClick: (() -> Unit)? = null,
     selected: Boolean = false,
     selecting: Boolean = false,
+    enabled: Boolean = true,
     onPlay: (() -> Unit)? = null,
 ) {
-    val playLabel =
-        if (selecting) stringResource(R.string.select_track, track.title)
-        else stringResource(R.string.play)
     val playModifier =
-        if (onPlay != null || onLongClick != null) {
-            Modifier.combinedClickable(
-                role = if (selecting) Role.Checkbox else Role.Button,
-                onClickLabel = playLabel,
+        when {
+            selecting && onPlay != null -> Modifier.toggleable(
+                value = selected,
+                enabled = enabled,
+                role = Role.Checkbox,
+                onValueChange = { onPlay() },
+            )
+            onPlay != null || onLongClick != null -> Modifier.combinedClickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.play),
                 onLongClickLabel = stringResource(R.string.select_track, track.title),
                 onLongClick = onLongClick,
-                onClick = { if (selecting || track.availability == "LOCAL") onPlay?.invoke() },
+                onClick = { if (track.availability == "LOCAL") onPlay?.invoke() },
             )
-        } else Modifier
+            else -> Modifier
+        }
     Row(
         Modifier.fillMaxWidth().heightIn(min = 80.dp).then(playModifier).padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -110,7 +117,9 @@ fun TrackRow(
         if (selecting)
             androidx.compose.material3.Checkbox(
                 checked = selected,
-                onCheckedChange = { onPlay?.invoke() },
+                onCheckedChange = null,
+                modifier = Modifier.size(48.dp),
+                enabled = enabled,
             )
         Artwork(track.artworkUri, revision = track.artworkVersion)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {

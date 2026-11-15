@@ -23,6 +23,7 @@ class ServiceQueue(
     suspend fun execute(args: Bundle): SessionResult {
         val id = args.getString("id")
         when (args.getString("operation")) {
+            "shuffle" -> player.shuffleModeEnabled = !player.shuffleModeEnabled
             "next" -> {
                 player.seekToNextMediaItem()
                 if (player.playerError != null) player.prepare()

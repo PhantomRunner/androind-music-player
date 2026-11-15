@@ -1,7 +1,6 @@
 package dev.violet.music.feature.search
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +32,7 @@ import dev.violet.music.feature.collection.CollectionViewModel
 import dev.violet.music.feature.collection.PlaylistRow
 import dev.violet.music.feature.library.LibraryUiState
 import dev.violet.music.feature.selection.SelectionToolbar
+import dev.violet.music.feature.selection.SelectionSourceEffect
 import dev.violet.music.feature.selection.SelectionViewModel
 
 @Composable
@@ -56,7 +56,6 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     var requestFocus by remember { mutableStateOf(false) }
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val activity = LocalActivity.current
     val isLanding = state.mode == SearchMode.LANDING
     val showingHistory = state.mode == SearchMode.INPUT && state.query.isBlank()
     val trackSource = SelectionSource("search", TrackFilter(query = state.effectiveQuery))
@@ -77,14 +76,7 @@ fun SearchScreen(
             requestFocus = false
         }
     }
-    LaunchedEffect(trackResults, trackSource) {
-        if (trackResults) selection.source(trackSource) else selection.leave(trackSource.context)
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            if (activity?.isChangingConfigurations != true) selection.leave(trackSource.context)
-        }
-    }
+    if (trackResults) SelectionSourceEffect(selection, trackSource)
 
     if (isLanding) {
         LazyColumn(
@@ -282,7 +274,7 @@ private fun searchResults(
             val filter = TrackFilter(query = query)
             val content: LazyListScope.() -> Unit = {
                 item("track-selection") {
-                    SelectionToolbar(selection, source, collections, clearOnDispose = false)
+                    SelectionToolbar(selection, source, collections, managesSource = false)
                 }
                 pagedTracks(
                     tracks,

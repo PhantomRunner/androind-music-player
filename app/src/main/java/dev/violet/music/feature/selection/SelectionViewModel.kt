@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 data class SelectionUiState(
+    val source: SelectionSource? = null,
     val active: Boolean = false,
     val selected: Map<String, SelectedTrack> = emptyMap(),
     val loading: Boolean = false,
@@ -32,16 +33,15 @@ constructor(private val repository: SelectionRepository, private val playback: P
     ViewModel() {
     private val state = MutableStateFlow(SelectionUiState())
     val uiState = state.asStateFlow()
-    private var source: SelectionSource? = null
     private var job: Job? = null
     private var watch: Job? = null
     @Volatile private var generation = 0
     private val edits = Mutex()
 
     fun source(value: SelectionSource) {
-        if (source == value) return
-        val previous = source
-        source = value
+        val previous = state.value.source
+        if (previous == value) return
+        state.value = state.value.copy(source = value)
         watch?.cancel()
         watch =
             viewModelScope.launch {
@@ -60,26 +60,35 @@ constructor(private val repository: SelectionRepository, private val playback: P
             clear()
             return
         }
-        if (state.value.active && !state.value.running) load(all = false)
+        val current = state.value
+        if (current.active && !current.running && !current.updating &&
+            (current.selected.isNotEmpty() || current.loading)
+        ) {
+            load(all = false)
+        }
     }
 
     fun begin() {
         if (!state.value.running) state.value = state.value.copy(active = true)
     }
 
-    fun toggle(item: SelectedTrack) {
-        if (state.value.loading || state.value.running || state.value.updating) return
+    fun toggle(item: SelectedTrack, expectedSource: SelectionSource? = null) {
+        val current = state.value
+        if (expectedSource != null && current.source != expectedSource) return
+        if (current.loading || current.running || current.updating) return
         val request = generation
-        state.value = state.value.copy(active = true, updating = true)
+        state.value = current.copy(active = true, updating = true)
         viewModelScope.launch(Dispatchers.Default) {
             edits.withLock {
                 val selected = state.value.selected.toMutableMap()
                 if (selected.remove(item.key) == null) selected[item.key] = item
                 val result = selected.toMap()
                 withContext(Dispatchers.Main.immediate) {
-                    if (generation == request)
+                    if (generation == request) {
                         state.value =
                             state.value.copy(selected = result, error = false, updating = false)
+                        if (state.value.source != current.source) load(all = false)
+                    }
                 }
             }
         }
@@ -88,7 +97,7 @@ constructor(private val repository: SelectionRepository, private val playback: P
     fun clear() {
         generation++
         job?.cancel()
-        state.value = SelectionUiState()
+        state.value = SelectionUiState(source = state.value.source)
     }
 
     fun cancel() {
@@ -106,10 +115,10 @@ constructor(private val repository: SelectionRepository, private val playback: P
 
     /** A departing destination must not clear selection already owned by the next screen. */
     fun leave(context: String) {
-        if (source?.context == context) {
+        if (state.value.source?.context == context) {
             cancel()
             watch?.cancel()
-            source = null
+            state.value = state.value.copy(source = null)
         }
     }
 
@@ -119,19 +128,19 @@ constructor(private val repository: SelectionRepository, private val playback: P
 
     fun playlistAddItems(context: String): List<PlaylistAddItem> {
         val current = state.value
-        if (source?.context != context || current.loading || current.updating || current.running)
+        if (current.source?.context != context || current.loading || current.updating || current.running)
             return emptyList()
         return current.selected.values.map { PlaylistAddItem(it.key, it.trackId) }
     }
 
     fun finishPlaylistAdd(context: String) {
-        if (source?.context == context) clear()
+        if (state.value.source?.context == context) clear()
     }
 
     fun selectAll() = load(all = true)
 
     private fun load(all: Boolean) {
-        val current = source ?: return
+        val current = state.value.source ?: return
         val selected = state.value.selected
         generation++
         val request = generation

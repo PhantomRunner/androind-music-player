@@ -15,6 +15,7 @@ fun LazyListScope.pagedTracks(
     onMenu: ((Track) -> Unit)? = null,
     selected: Set<String> = emptySet(),
     selecting: Boolean = false,
+    rowEnabled: Boolean = true,
     onToggle: ((Track) -> Unit)? = null,
     onPlay: (Track) -> Unit,
 ) {
@@ -57,6 +58,7 @@ fun LazyListScope.pagedTracks(
                 onLongClick = onToggle?.let { action -> { action(track) } },
                 selected = track.id in selected,
                 selecting = selecting,
+                enabled = rowEnabled,
                 onPlay = { if (selecting) onToggle?.invoke(track) else onPlay(track) },
             )
         }

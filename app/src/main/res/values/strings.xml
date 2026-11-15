@@ -76,6 +76,11 @@
     <string name="drag_queue">Drag to reorder %1$s</string>
     <string name="queue_shuffle_hint">Shuffle is on. This is the actual playback order; moving a track keeps shuffle on.</string>
     <string name="currently_playing">Currently playing</string>
+    <string name="queue_show_earlier">Show earlier tracks (%d)</string>
+    <string name="queue_hide_earlier">Hide earlier tracks (%d)</string>
+    <string name="queue_up_next">Up next</string>
+    <string name="queue_no_upcoming">No more tracks in this queue.</string>
+    <string name="queue_track_actions">Track actions</string>
     <string name="music_format">Audio format · %1$s</string>
     <string name="duration_label">Duration · %1$s</string>
     <string name="app_name">Violet Music</string>
