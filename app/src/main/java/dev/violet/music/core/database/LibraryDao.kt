@@ -8,6 +8,7 @@ import dev.violet.music.core.model.AlbumSummary
 import dev.violet.music.core.model.ArtistSummary
 import dev.violet.music.core.model.LibraryStats
 import dev.violet.music.core.model.Track
+import dev.violet.music.core.playback.PlayableTrack
 import kotlinx.coroutines.flow.Flow
 
 private const val TRACK_COLUMNS = "id, title, artistName, albumTitle, albumKey, durationMs, " +
@@ -58,6 +59,23 @@ interface LibraryDao {
 
     @Query("SELECT * FROM tracks WHERE id = :id")
     suspend fun findTrack(id: String): TrackEntity?
+
+    @Query(
+        "SELECT id FROM tracks WHERE availability = 'LOCAL' AND " +
+            "(:pattern = '' OR title LIKE :pattern ESCAPE '!' OR artistName LIKE :pattern ESCAPE '!' " +
+            "OR albumTitle LIKE :pattern ESCAPE '!') " +
+            "AND (:albumKey IS NULL OR albumKey = :albumKey) " +
+            "AND (:artistName IS NULL OR artistName = :artistName COLLATE NOCASE) " +
+            "ORDER BY CASE WHEN :recent THEN dateAdded END DESC, title COLLATE NOCASE, id",
+    )
+    suspend fun queueIds(pattern: String, albumKey: String?, artistName: String?, recent: Boolean): List<String>
+
+    @Query(
+        "SELECT t.id, t.title, t.artistName, t.albumTitle, t.artworkUri, t.durationMs, a.uri, a.mimeType " +
+            "FROM tracks t JOIN media_assets a ON a.trackId = t.id " +
+            "WHERE t.id IN (:ids) AND a.available = 1 AND t.availability = 'LOCAL'",
+    )
+    suspend fun playableTracks(ids: List<String>): List<PlayableTrack>
 
     @Upsert
     suspend fun upsertTrack(track: TrackEntity)

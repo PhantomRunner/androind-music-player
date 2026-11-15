@@ -2,8 +2,14 @@ package dev.violet.music.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import dev.violet.music.R
 import androidx.compose.ui.unit.dp
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -21,11 +27,19 @@ fun CollectionScreen(
     onPermission: () -> Unit,
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
+    onPlay: (Track) -> Unit,
+    onPlayAll: (Boolean) -> Unit,
 ) {
     val items = tracks.collectAsLazyPagingItems()
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item("title") { SectionTitle(title) }
         libraryNotices(state, onPermission, onSettings, onRefresh)
-        pagedTracks(items)
+        if (items.itemCount > 0 && state.hasPermission) item("play-actions") {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = { onPlayAll(false) }) { Text(stringResource(R.string.play_all)) }
+                OutlinedButton(onClick = { onPlayAll(true) }) { Text(stringResource(R.string.shuffle)) }
+            }
+        }
+        pagedTracks(items, onPlay = onPlay)
     }
 }

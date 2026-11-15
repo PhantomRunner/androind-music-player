@@ -21,10 +21,12 @@ import dev.violet.music.core.media.AudioPermission
 import dev.violet.music.core.ui.VioletApp
 import dev.violet.music.core.ui.theme.VioletTheme
 import dev.violet.music.feature.library.LibraryViewModel
+import dev.violet.music.feature.player.PlayerViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: LibraryViewModel by viewModels()
+    private val playerViewModel: PlayerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +51,7 @@ class MainActivity : ComponentActivity() {
             VioletTheme {
                 VioletApp(
                     viewModel = viewModel,
+                    playerViewModel = playerViewModel,
                     onPermission = { permissionLauncher.launch(AudioPermission.name) },
                     onAndroidSettings = {
                         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))

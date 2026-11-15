@@ -1,6 +1,7 @@
 package dev.violet.music.core.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,9 +61,12 @@ fun Artwork(uri: String?, size: Dp = 56.dp) {
 }
 
 @Composable
-fun TrackRow(track: Track) {
+fun TrackRow(track: Track, onPlay: (() -> Unit)? = null) {
+    val playLabel = stringResource(R.string.play)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().heightIn(min = 80.dp)
+            .clickable(enabled = onPlay != null && track.availability == "LOCAL", role = Role.Button, onClickLabel = playLabel) { onPlay?.invoke() }
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Artwork(track.artworkUri)

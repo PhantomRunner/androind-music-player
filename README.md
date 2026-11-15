@@ -1,6 +1,6 @@
 # Violet Music
 
-Native, offline Android music catalogue with an original Midnight Violet interface. This first slice implements **M0 + M1**: Home, Search, Library, album/artist browsing, Settings, audio permissions, actual MediaStore indexing and a persistent Room catalogue. Audio playback and collection editing belong to later tasks.
+Native, offline Android music player with an original Midnight Violet interface. **M0–M2** provide Home, Search, Library, album/artist browsing, Settings, audio permissions, actual MediaStore indexing, a persistent Room catalogue and real Media3 playback. Persistent collection editing is the next implementation step.
 
 ## Open and run
 
@@ -11,7 +11,7 @@ Requirements: Android Studio with Android SDK Platform **36**, Build Tools **35.
 3. Start an API 26+ emulator or connect your Android phone with USB debugging enabled.
 4. Select the `app` configuration and press Run. For a physical device, accept its USB debugging prompt first.
 5. Tap **Allow music access**. Put your own music in the device's Music folder and wait for Android to index it. A scan starts after permission is granted; later scans are available under **Settings → Scan device music**.
-6. Browse Library's Tracks, Albums and Artists, and search by title, artist or album. Track rows display metadata; this version has no playback controls.
+6. Browse Library's Tracks, Albums and Artists, and search by title, artist or album. Tap a track to play, or use Play all/Shuffle. Open the mini player for seek, repeat, shuffle and queue controls. Playback continues in the background and exposes system media controls.
 
 Command line, with `JAVA_HOME` pointing to JDK 17 and the SDK configured:
 
@@ -50,12 +50,14 @@ dev.violet.music
   core/data                       LibraryRepository and Room-backed implementation
   core/database                   Room entities, DAO, transactional catalogue writer
   core/media                      Read-only MediaStore scanner and scan coordinator
+  core/playback                   MediaSessionService, controller facade and URI resolver
   core/di                         Application-scoped bindings and database
   core/ui                         Shared components, navigation shell, theme
   feature/home                    Real recent additions and counts
   feature/library                 Shared catalogue ViewModel, tracks/albums/artists
   feature/search                  Debounced local search UI
   feature/settings                Refresh, permission and indexing information
+  feature/player                  Mini player, Now Playing and queue
 ```
 
 Compose reads immutable `LibraryUiState` using `collectAsStateWithLifecycle`; paged lists consume repository `Flow<PagingData<…>>`, with a 250-row page-cache budget per list. Composables never access Room or MediaStore. Hilt supplies one repository/indexer per app; Room is the persistent app-facing source of truth. MediaStore queries run on `Dispatchers.IO`; Room runs database transactions and observable queries on its own executors.
@@ -76,6 +78,8 @@ Versions are pinned in `gradle/libs.versions.toml`, using the available stable t
 | Coil | 2.7.0 | Asynchronous local `content://` artwork loading |
 | JUnit / AndroidX test runner | 4.13.2 / 1.7.0 | JVM and instrumented verification |
 | Espresso | 3.7.0 | Compose test input compatibility with current Android APIs |
+| Media3 ExoPlayer / Session | 1.8.1 | Single background player, media session and system controls |
+| Coroutines Guava | 1.9.0 | Cancellable Media3 future/Room coroutine integration |
 
 Database v1 contains only `tracks`, `media_assets`, and `scan_state`. Its generated schema is in `app/schemas`. Future changes must increment the version, export the new schema and supply a tested migration that preserves UUIDs and user data. There is no destructive migration fallback. [Architecture decisions](docs/architecture-decisions.md) explain milestone boundaries, scan completeness and deferred functionality.
 
@@ -111,8 +115,12 @@ Manual checks on a physical phone remain useful:
 5. Unmount/remount a removable volume and scan. Interrupt a scan or revoke access midway; unseen entries must stay saved.
 6. Increase system font size, rotate, navigate with TalkBack, and check empty/error states. All interactive controls use at least 48dp touch targets.
 
-## Next milestone
+## Playback and next milestone
 
-M2 requires a separately assigned Media3 `MediaSessionService`, a shared controller/facade, URI resolver based on the stored track UUID/assets, queue, real mini player/Now Playing, transport controls and background/system controls. The navigation shell already has an empty mini-player content slot. No simulated playback state is shipped. Playlist/favourite editing, server APIs, authentication and sync are deferred; `serverId` is only a nullable storage field.
+The service owns the only ExoPlayer. UI controllers connect to that session; opening/closing screens or an Activity does not create a new player. The app uses audio focus, pauses on disconnected headphones and holds a playback wake lock. Media3 manages the foreground playback notification; no unrelated notification permission or network permission is requested. Queue metadata is resolved by app UUID in batches, using only local MediaStore assets. Missing/corrupt audio produces a recoverable error; the service advances past failed queue items without an infinite repeat loop. Queue/position are session state; full process death and reboot do not automatically restore/start playback.
 
-Git is initialized on `main` without a remote or commits. Local starter requirement files are ignored to keep them out of future commits.
+M2 verification added two instrumented tests: actual WAV playback, queue/seek/shuffle/repeat, background position advancement, platform media transport controls, reconnection, removal/stop and an unavailable UUID. The full M2 run passed 12 JVM tests and 14 instrumented tests, with build and lint passing. Bluetooth hardware and manufacturer-specific power management remain physical-device checks.
+
+M3 adds persistent playlists/favourites. Server APIs, authentication and sync remain outside the offline MVP; `serverId` is only a nullable storage field.
+
+Git uses `main`, with local milestone commits and no remote. Local starter requirement files are ignored to keep them out of commits.

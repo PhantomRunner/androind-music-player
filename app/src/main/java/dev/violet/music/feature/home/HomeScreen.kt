@@ -26,6 +26,7 @@ import dev.violet.music.core.ui.TrackRow
 import dev.violet.music.core.ui.libraryNotices
 import dev.violet.music.core.ui.collectionCountLabel
 import dev.violet.music.feature.library.LibraryUiState
+import dev.violet.music.core.model.Track
 
 @Composable
 fun HomeScreen(
@@ -35,6 +36,7 @@ fun HomeScreen(
     onPermission: () -> Unit,
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
+    onPlay: (Track) -> Unit,
 ) {
     LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item("hero") {
@@ -67,7 +69,7 @@ fun HomeScreen(
                     if (state.hasPermission) stringResource(R.string.scan_library) else null, onRefresh,
                 )
             }
-            items(state.recentTracks, key = { it.id }) { TrackRow(it) }
+            items(state.recentTracks, key = { it.id }) { track -> TrackRow(track) { onPlay(track) } }
             item("search-shortcut") {
                 TextButton(onClick = onSearch) { Text(stringResource(R.string.find_something)) }
             }

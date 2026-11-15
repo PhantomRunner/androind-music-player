@@ -8,7 +8,7 @@ import androidx.paging.compose.itemKey
 import dev.violet.music.R
 import dev.violet.music.core.model.Track
 
-fun LazyListScope.pagedTracks(tracks: LazyPagingItems<Track>, emptySearch: Boolean = false) {
+fun LazyListScope.pagedTracks(tracks: LazyPagingItems<Track>, emptySearch: Boolean = false, onPlay: (Track) -> Unit) {
     if (tracks.loadState.refresh is LoadState.Loading && tracks.itemCount == 0) {
         item("tracks-loading") { LoadingState() }
     } else if (tracks.loadState.refresh is LoadState.Error) {
@@ -27,7 +27,7 @@ fun LazyListScope.pagedTracks(tracks: LazyPagingItems<Track>, emptySearch: Boole
         }
     }
     items(count = tracks.itemCount, key = tracks.itemKey { "track:${it.id}" }) { index ->
-        tracks[index]?.let { TrackRow(it) }
+        tracks[index]?.let { track -> TrackRow(track) { onPlay(track) } }
     }
     when (tracks.loadState.append) {
         is LoadState.Loading -> item("append-loading") { LoadingState() }

@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +50,8 @@ fun LibraryScreen(
     onPermission: () -> Unit,
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
+    onPlay: (Track) -> Unit,
+    onPlayAll: (Boolean) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val trackItems = tracks.collectAsLazyPagingItems()
@@ -69,8 +73,14 @@ fun LibraryScreen(
             }
         }
         libraryNotices(state, onPermission, onSettings, onRefresh)
+        if (tab == 0 && state.stats.trackCount > 0 && state.hasPermission) item("play-actions") {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = { onPlayAll(false) }) { Text(stringResource(R.string.play_all)) }
+                OutlinedButton(onClick = { onPlayAll(true) }) { Text(stringResource(R.string.shuffle)) }
+            }
+        }
         when (tab) {
-            0 -> pagedTracks(trackItems)
+            0 -> pagedTracks(trackItems, onPlay = onPlay)
             1 -> {
                 summaryStatus(albumItems)
                 items(albumItems.itemCount, key = albumItems.itemKey { "album:${it.albumKey}" }) { index ->

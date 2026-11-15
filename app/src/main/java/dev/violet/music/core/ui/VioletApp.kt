@@ -17,9 +17,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -38,6 +43,12 @@ import dev.violet.music.feature.library.LibraryScreen
 import dev.violet.music.feature.library.LibraryViewModel
 import dev.violet.music.feature.search.SearchScreen
 import dev.violet.music.feature.settings.SettingsScreen
+import dev.violet.music.feature.player.PlayerViewModel
+import dev.violet.music.feature.player.MiniPlayer
+import dev.violet.music.feature.player.NowPlayingScreen
+import dev.violet.music.feature.player.QueueScreen
+import dev.violet.music.core.model.TrackFilter
+import dev.violet.music.core.playback.PlaybackError
 
 private data class Destination(val route: String, val label: Int, val icon: ImageVector)
 private val destinations = listOf(
@@ -50,11 +61,31 @@ private val destinations = listOf(
 @Composable
 fun VioletApp(
     viewModel: LibraryViewModel,
+    playerViewModel: PlayerViewModel,
     onPermission: () -> Unit,
     onAndroidSettings: () -> Unit,
-    miniPlayerSlot: @Composable () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val playback by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    LaunchedEffect(playback.error) {
+        playback.error?.let { error ->
+            val message = when (error) {
+                PlaybackError.CONNECTION -> R.string.connection_error
+                PlaybackError.PERMISSION -> R.string.play_permission_error
+                PlaybackError.UNAVAILABLE -> R.string.unavailable_error
+                PlaybackError.EMPTY_QUEUE -> R.string.empty_queue_error
+                PlaybackError.PLAYBACK -> R.string.playback_error
+            }
+            val result = snackbar.showSnackbar(
+                context.getString(message),
+                actionLabel = if (error == PlaybackError.CONNECTION) context.getString(R.string.retry) else null,
+            )
+            if (result == SnackbarResult.ActionPerformed) playerViewModel.controller.reconnect()
+            playerViewModel.controller.dismissError()
+        }
+    }
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "home"
@@ -67,7 +98,7 @@ fun VioletApp(
                 title = { Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 navigationIcon = {
-                    if (isCollection || route == "settings") IconButton(onClick = { navController.popBackStack() }) {
+                    if (isCollection || route in listOf("settings", "now-playing", "queue")) IconButton(onClick = { navController.popBackStack() }) {
                         Icon(VioletIcons.Back, stringResource(R.string.back))
                     }
                 },
@@ -80,8 +111,9 @@ fun VioletApp(
         },
         bottomBar = {
             Column {
-                // Intentionally empty until a real shared Media3 session exists.
-                miniPlayerSlot()
+                if (route != "now-playing") MiniPlayer(playback, playerViewModel.controller) {
+                    navController.navigate("now-playing") { launchSingleTop = true }
+                }
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                     destinations.forEach { destination ->
                         NavigationBarItem(
@@ -100,6 +132,7 @@ fun VioletApp(
                 }
             }
         },
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             NavHost(navController, startDestination = "home") {
@@ -107,10 +140,13 @@ fun VioletApp(
                     HomeScreen(
                         state, { navController.navigate("library") }, { navController.navigate("search") },
                         onPermission, onAndroidSettings, viewModel::refresh,
+                        onPlay = { track -> playerViewModel.playIds(state.recentTracks.map { it.id }, state.recentTracks.indexOfFirst { it.id == track.id }) },
                     )
                 }
                 composable("search") {
-                    SearchScreen(state, viewModel.searchResults, viewModel::updateQuery, onPermission, onAndroidSettings, viewModel::refresh)
+                    SearchScreen(state, viewModel.searchResults, viewModel::updateQuery, onPermission, onAndroidSettings, viewModel::refresh) {
+                        playerViewModel.play(it.id, TrackFilter(query = state.query))
+                    }
                 }
                 composable("library") {
                     LibraryScreen(
@@ -118,6 +154,7 @@ fun VioletApp(
                         onAlbum = { navController.navigate("album/${Uri.encode(it.albumKey)}/${Uri.encode(it.title)}") },
                         onArtist = { navController.navigate("artist/${Uri.encode(it.name)}") },
                         onPermission, onAndroidSettings, viewModel::refresh,
+                        onPlay = { playerViewModel.play(it.id) }, onPlayAll = { playerViewModel.play(null, shuffle = it) },
                     )
                 }
                 composable("settings") {
@@ -130,13 +167,21 @@ fun VioletApp(
                     val key = requireNotNull(backStackEntry.arguments?.getString("key"))
                     val title = requireNotNull(backStackEntry.arguments?.getString("title"))
                     val tracks = remember(key) { viewModel.albumTracks(key) }
-                    CollectionScreen(title, state, tracks, onPermission, onAndroidSettings, viewModel::refresh)
+                    CollectionScreen(title, state, tracks, onPermission, onAndroidSettings, viewModel::refresh,
+                        onPlay = { playerViewModel.play(it.id, TrackFilter(albumKey = key)) },
+                        onPlayAll = { playerViewModel.play(null, TrackFilter(albumKey = key), it) })
                 }
                 composable("artist/{name}", arguments = listOf(navArgument("name") { type = NavType.StringType })) { backStackEntry ->
                     val name = requireNotNull(backStackEntry.arguments?.getString("name"))
                     val tracks = remember(name) { viewModel.artistTracks(name) }
-                    CollectionScreen(name, state, tracks, onPermission, onAndroidSettings, viewModel::refresh)
+                    CollectionScreen(name, state, tracks, onPermission, onAndroidSettings, viewModel::refresh,
+                        onPlay = { playerViewModel.play(it.id, TrackFilter(artistName = name)) },
+                        onPlayAll = { playerViewModel.play(null, TrackFilter(artistName = name), it) })
                 }
+                composable("now-playing") {
+                    NowPlayingScreen(playback, playerViewModel.controller) { navController.navigate("queue") }
+                }
+                composable("queue") { QueueScreen(playback, playerViewModel.controller) }
             }
         }
     }

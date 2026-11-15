@@ -16,10 +16,13 @@ import dev.violet.music.core.media.CatalogueWriter
 import dev.violet.music.core.media.DeviceScanner
 import dev.violet.music.core.media.MediaStoreScanner
 import javax.inject.Singleton
+import dev.violet.music.core.playback.PlaybackController
+import dev.violet.music.core.playback.Media3PlaybackController
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AppModule {
+    @Binds abstract fun playback(implementation: Media3PlaybackController): PlaybackController
     @Binds abstract fun repository(implementation: OfflineLibraryRepository): LibraryRepository
     @Binds abstract fun scanner(implementation: MediaStoreScanner): DeviceScanner
     @Binds abstract fun writer(implementation: RoomCatalogueWriter): CatalogueWriter
