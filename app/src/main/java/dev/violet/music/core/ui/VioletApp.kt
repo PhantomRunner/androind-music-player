@@ -46,12 +46,14 @@ import dev.violet.music.feature.collection.PlaylistDuplicateDialog
 import dev.violet.music.feature.library.LibraryViewModel
 import dev.violet.music.feature.player.MiniPlayer
 import dev.violet.music.feature.player.PlayerViewModel
+import dev.violet.music.feature.search.SearchViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VioletApp(
     viewModel: LibraryViewModel,
+    searchViewModel: SearchViewModel,
     playerViewModel: PlayerViewModel,
     collectionViewModel: CollectionViewModel,
     homeViewModel: dev.violet.music.feature.home.HomeViewModel,
@@ -70,6 +72,11 @@ fun VioletApp(
     LaunchedEffect(viewModel) {
         viewModel.preferenceErrors.collect {
             snackbar.showSnackbar(context.getString(R.string.settings_error))
+        }
+    }
+    LaunchedEffect(searchViewModel) {
+        searchViewModel.historyErrors.collect {
+            snackbar.showSnackbar(context.getString(R.string.search_history_error))
         }
     }
     LaunchedEffect(selection.running, selection.active, selection.processed, selection.skipped) {
@@ -236,6 +243,7 @@ fun VioletApp(
             AppNavigation(
                 navController,
                 viewModel,
+                searchViewModel,
                 playerViewModel,
                 collectionViewModel,
                 homeViewModel,

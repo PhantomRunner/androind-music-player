@@ -23,10 +23,12 @@ import dev.violet.music.core.ui.theme.VioletTheme
 import dev.violet.music.feature.collection.CollectionViewModel
 import dev.violet.music.feature.library.LibraryViewModel
 import dev.violet.music.feature.player.PlayerViewModel
+import dev.violet.music.feature.search.SearchViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: LibraryViewModel by viewModels()
+    private val searchViewModel: SearchViewModel by viewModels()
     private val playerViewModel: PlayerViewModel by viewModels()
     private val collectionViewModel: CollectionViewModel by viewModels()
     private val homeViewModel: dev.violet.music.feature.home.HomeViewModel by viewModels()
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
             VioletTheme {
                 VioletApp(
                     viewModel = viewModel,
+                    searchViewModel = searchViewModel,
                     playerViewModel = playerViewModel,
                     collectionViewModel = collectionViewModel,
                     homeViewModel = homeViewModel,

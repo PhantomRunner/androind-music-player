@@ -19,7 +19,6 @@ data class LibraryUiState(
     val recentTracks: List<Track> = emptyList(),
     val lastScan: Long? = null,
     val scanStatus: ScanStatus = ScanStatus.Idle,
-    val query: String = "",
     val hasPermission: Boolean = false,
     val loading: Boolean = true,
     val catalogueError: Boolean = false,
@@ -58,7 +57,6 @@ constructor(
 
     private val permission = MutableStateFlow(false)
     private var checkedOnEntry = false
-    private val query = saved.getStateFlow("query", "")
     private val libraryQuery = saved.getStateFlow("library.query", "")
     private val category = saved.getStateFlow("library.category", LibraryCategory.ALL.name)
     val preferences =
@@ -70,9 +68,8 @@ constructor(
                 repository.observeRecentlyAdded(),
                 repository.observeLastScan(),
                 repository.scanStatus,
-                query,
-            ) { stats, recent, lastScan, scan, text ->
-                LibraryUiState(stats, recent, lastScan, scan, text, loading = false)
+            ) { stats, recent, lastScan, scan ->
+                LibraryUiState(stats, recent, lastScan, scan, loading = false)
             }
             .catch { emit(LibraryUiState(loading = false, catalogueError = true)) }
     val uiState =
@@ -118,17 +115,6 @@ constructor(
             }
             .flatMapLatest { (text, sort) -> collections.filteredPlaylists(text, sort) }
             .cachedIn(viewModelScope)
-    val searchResults =
-        query
-            .debounce(300)
-            .distinctUntilChanged()
-            .flatMapLatest { repository.tracks(TrackFilter(query = it)) }
-            .cachedIn(viewModelScope)
-
-    fun updateQuery(value: String) {
-        saved["query"] = value
-    }
-
     fun updateLibraryQuery(value: String) {
         saved["library.query"] = value
     }

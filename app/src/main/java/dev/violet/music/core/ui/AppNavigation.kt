@@ -18,6 +18,7 @@ import dev.violet.music.feature.home.*
 import dev.violet.music.feature.library.*
 import dev.violet.music.feature.player.*
 import dev.violet.music.feature.search.SearchScreen
+import dev.violet.music.feature.search.SearchViewModel
 import dev.violet.music.feature.settings.SettingsScreen
 import dev.violet.music.feature.stats.*
 
@@ -25,6 +26,7 @@ import dev.violet.music.feature.stats.*
 fun AppNavigation(
     nav: NavHostController,
     library: LibraryViewModel,
+    search: SearchViewModel,
     player: PlayerViewModel,
     collections: CollectionViewModel,
     home: HomeViewModel,
@@ -69,14 +71,16 @@ fun AppNavigation(
         }
         composable("search") {
             SearchScreen(
+                search,
                 state,
-                library.searchResults,
-                library::updateQuery,
                 onPermission,
                 onAndroidSettings,
                 library::refresh,
-                onPlay = { player.play(it.id, TrackFilter(query = state.query)) },
-                onMenu = { onTrackMenu(it, TrackFilter(query = state.query), null) },
+                onPlay = { track, filter -> player.play(track.id, filter) },
+                onMenu = { track, filter -> onTrackMenu(track, filter, null) },
+                onAlbum = { album(it.albumKey, it.title) },
+                onArtist = { artist(it.id) },
+                onPlaylist = { nav.navigate("playlist/${it.id}") },
                 selection = selection,
                 collections = collections,
             )

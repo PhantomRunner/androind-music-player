@@ -296,6 +296,33 @@ class ExperienceIntegrationTest {
         }
 
     @Test
+    fun recentSearchesAreUniqueBoundedAndPersistAcrossDatabaseReopen() = runBlocking {
+        val name = "search-history-fixture-${java.util.UUID.randomUUID()}.db"
+        var persistent = Room.databaseBuilder(context, MusicDatabase::class.java, name).build()
+        try {
+            val settings = SettingsRepository(persistent)
+            for (index in 1..12) settings.recordSearch("Search $index")
+            settings.recordSearch("  search 5  ")
+            settings.recordSearch(" ")
+            settings.removeSearch("SEARCH 3")
+            val expected = listOf("search 5") + (12 downTo 3).filter { it != 5 && it != 3 }.map {
+                "Search $it"
+            }
+            assertEquals(expected, settings.recentSearches.first())
+
+            persistent.close()
+            persistent = Room.databaseBuilder(context, MusicDatabase::class.java, name).build()
+            val reopened = SettingsRepository(persistent)
+            assertEquals(expected, reopened.recentSearches.first())
+            reopened.clearSearches()
+            assertEquals(emptyList<String>(), reopened.recentSearches.first())
+        } finally {
+            persistent.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
     fun settingsSurviveReopenAndPartialScanPreservesCorrectedCredits() = runBlocking {
         val writer = RoomCatalogueWriter(db)
         writer.importBatch(listOf(fixture(1)), "a")

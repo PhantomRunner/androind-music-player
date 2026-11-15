@@ -20,6 +20,12 @@ interface ExperienceDao {
 
     @Query("SELECT * FROM preferences") fun preferences(): Flow<List<PreferenceEntity>>
 
+    @Query("SELECT value FROM preferences WHERE `key` = :key")
+    fun observePreference(key: String): Flow<String?>
+
+    @Query("SELECT value FROM preferences WHERE `key` = :key")
+    suspend fun readPreference(key: String): String?
+
     @Upsert suspend fun preference(value: PreferenceEntity)
 
     @Query("SELECT * FROM artists WHERE normalizedName = :name")

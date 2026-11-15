@@ -119,9 +119,13 @@
     <string name="retry">Try again</string>
     <string name="empty_title">Your collection starts here</string>
     <string name="empty_description">Put music on your device, allow audio access, then scan. Violet reads music listed by Android’s media library.</string>
-    <string name="search_hint">Songs, artists or albums</string>
-    <string name="search_intro">Find your next listen</string>
-    <string name="search_description">Search titles, artists and albums in your saved device catalogue.</string>
+    <string name="search_hint">Search your music</string>
+    <string name="search_browse">Browse your library</string>
+    <string name="recent_searches">Recent searches</string>
+    <string name="no_recent_searches">Your searches will appear here.</string>
+    <string name="clear_recent_searches">Clear recent searches</string>
+    <string name="remove_recent_search">Remove search for %1$s</string>
+    <string name="search_history_error">Could not update recent searches. Try again.</string>
     <string name="search_empty">No matching music</string>
     <string name="search_empty_description">Try another title, artist or album, or refresh your library.</string>
     <string name="load_error">The catalogue could not be loaded.</string>
