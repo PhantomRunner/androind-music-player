@@ -1,8 +1,9 @@
 package dev.violet.music
 
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assert
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -10,7 +11,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -23,7 +23,7 @@ class AppNavigationTest {
 
     @Test
     fun homeLibrarySearchAndSettingsAreReachable() {
-        compose.onNodeWithText("Music, close to home.").assertIsDisplayed()
+        compose.onNodeWithText("Quick picks").assertIsDisplayed()
         compose.onNode(hasText("Library") and hasClickAction()).performClick()
         compose.onNode(hasText("Albums") and hasClickAction()).assertIsDisplayed().performClick()
         compose.onNode(hasText("Artists") and hasClickAction()).assertIsDisplayed().performClick()
@@ -38,11 +38,15 @@ class AppNavigationTest {
     @Test
     fun searchCanBeEditedAndCleared() {
         compose.onNode(hasText("Search") and hasClickAction()).performClick()
-        compose.onNodeWithText("Songs, artists or albums").performTextInput("Violet test fixture query")
+        compose
+            .onNodeWithText("Songs, artists or albums")
+            .performTextInput("Violet test fixture query")
         compose.onNodeWithContentDescription("Clear search").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Songs, artists or albums").assert(
-            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
-        )
+        compose
+            .onNodeWithText("Songs, artists or albums")
+            .assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(""))
+            )
         compose.onNodeWithContentDescription("Clear search").assertDoesNotExist()
     }
 }

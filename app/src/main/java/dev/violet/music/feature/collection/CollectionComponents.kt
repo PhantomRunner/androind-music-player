@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -32,16 +34,28 @@ import dev.violet.music.core.model.PlaylistSummary
 import dev.violet.music.core.model.Track
 import dev.violet.music.core.ui.Artwork
 import dev.violet.music.core.ui.LoadingState
+import dev.violet.music.core.ui.coverUri
 import dev.violet.music.core.ui.trackCountLabel
 
 @Composable
 fun PlaylistRow(playlist: PlaylistSummary, onClick: () -> Unit) {
-    Surface(onClick = onClick, color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Artwork(playlist.artworkUri)
+    Surface(
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Artwork(playlist.coverUri())
             Column {
                 Text(playlist.name, style = MaterialTheme.typography.titleMedium)
-                Text(trackCountLabel(playlist.trackCount), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    trackCountLabel(playlist.trackCount),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -52,32 +66,95 @@ fun PlaylistNameDialog(initialName: String = "", onDismiss: () -> Unit, onSave: 
     var name by rememberSaveable(initialName) { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (initialName.isEmpty()) R.string.new_playlist else R.string.rename_playlist)) },
+        title = {
+            Text(
+                stringResource(
+                    if (initialName.isEmpty()) R.string.new_playlist else R.string.rename_playlist
+                )
+            )
+        },
         text = {
             OutlinedTextField(
-                value = name, onValueChange = { name = it }, singleLine = true,
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
                 label = { Text(stringResource(R.string.playlist_name)) },
-                supportingText = { Text(stringResource(R.string.playlist_name_limit)) }, isError = name.trim().length > 120,
+                supportingText = { Text(stringResource(R.string.playlist_name_limit)) },
+                isError = name.trim().length > 120,
             )
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name) }, enabled = name.trim().length in 1..120) { Text(stringResource(R.string.save)) }
+            TextButton(onClick = { onSave(name) }, enabled = name.trim().length in 1..120) {
+                Text(stringResource(R.string.save))
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrackActionSheet(track: Track, onDismiss: () -> Unit, onFavourite: () -> Unit, onAdd: () -> Unit) {
+fun TrackActionSheet(
+    track: Track,
+    onDismiss: () -> Unit,
+    onFavourite: () -> Unit,
+    onAdd: () -> Unit,
+    onPlay: () -> Unit,
+    onNext: () -> Unit,
+    onQueue: () -> Unit,
+    onArtist: () -> Unit,
+    onAlbum: () -> Unit,
+    onInfo: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Text(track.title, style = MaterialTheme.typography.titleLarge)
             Text(track.artistName, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = onFavourite, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                Text(stringResource(if (track.isFavourite) R.string.remove_favourite else R.string.add_favourite))
+            if (track.availability == "LOCAL")
+                listOf(
+                        R.string.play to onPlay,
+                        R.string.play_next to onNext,
+                        R.string.add_to_queue to onQueue,
+                    )
+                    .forEach { (label, action) ->
+                        TextButton(
+                            onClick = action,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Text(stringResource(label))
+                        }
+                    }
+            TextButton(
+                onClick = onFavourite,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Text(
+                    stringResource(
+                        if (track.isFavourite) R.string.remove_favourite else R.string.add_favourite
+                    )
+                )
             }
-            TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.add_to_playlist)) }
+            TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.add_to_playlist))
+            }
+            listOf(
+                    R.string.go_to_artist to onArtist,
+                    R.string.go_to_album to onAlbum,
+                    R.string.track_information to onInfo,
+                )
+                .forEach { (label, action) ->
+                    TextButton(
+                        onClick = action,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(label))
+                    }
+                }
         }
     }
 }
@@ -90,19 +167,31 @@ fun PlaylistPicker(
     onCreate: () -> Unit,
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.add_to_playlist)) },
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.add_to_playlist)) },
         text = {
-            LazyColumn(Modifier.heightIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { TextButton(onClick = onCreate) { Text(stringResource(R.string.new_playlist)) } }
-                if (playlists.loadState.refresh is LoadState.Loading) item { LoadingState() }
-                if (playlists.loadState.hasError) item {
-                    TextButton(onClick = playlists::retry) { Text(stringResource(R.string.retry)) }
+            LazyColumn(
+                Modifier.heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    TextButton(onClick = onCreate) { Text(stringResource(R.string.new_playlist)) }
                 }
+                if (playlists.loadState.refresh is LoadState.Loading) item { LoadingState() }
+                if (playlists.loadState.hasError)
+                    item {
+                        TextButton(onClick = playlists::retry) {
+                            Text(stringResource(R.string.retry))
+                        }
+                    }
                 items(playlists.itemCount, key = playlists.itemKey { it.id }) { index ->
                     playlists[index]?.let { PlaylistRow(it) { onSelect(it.id) } }
                 }
             }
         },
-        confirmButton = {}, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
     )
 }

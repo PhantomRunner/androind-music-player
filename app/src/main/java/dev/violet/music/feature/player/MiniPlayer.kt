@@ -30,20 +30,40 @@ fun MiniPlayer(state: PlaybackUiState, controller: PlaybackController, onOpen: (
         Column {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Artwork(current.artworkUri, 48.dp)
+                Artwork(current.artworkUri, 48.dp, revision = current.artworkVersion)
                 Column(Modifier.weight(1f)) {
-                    Text(current.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                    Text(current.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        current.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        current.artist,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 IconButton(onClick = controller::togglePlay, enabled = state.connected) {
-                    Icon(if (state.playWhenReady) PlaybackIcons.Pause else PlaybackIcons.Play, stringResource(if (state.playWhenReady) R.string.pause else R.string.play))
+                    Icon(
+                        if (state.playWhenReady) PlaybackIcons.Pause else PlaybackIcons.Play,
+                        stringResource(if (state.playWhenReady) R.string.pause else R.string.play),
+                    )
                 }
-                IconButton(onClick = controller::next, enabled = state.connected) { Icon(PlaybackIcons.Next, stringResource(R.string.next)) }
+                IconButton(onClick = controller::next, enabled = state.connected) {
+                    Icon(PlaybackIcons.Next, stringResource(R.string.next))
+                }
             }
             LinearProgressIndicator(
-                progress = { if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f },
+                progress = {
+                    if (state.durationMs > 0)
+                        (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f)
+                    else 0f
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
