@@ -6,6 +6,7 @@ data class SelectionSource(
     val context: String,
     val filter: TrackFilter? = null,
     val playlistId: String? = null,
+    val playlistFilter: PlaylistFilter = PlaylistFilter(),
 )
 
 enum class BulkAction {

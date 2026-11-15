@@ -127,7 +127,8 @@ class CollectionUiTest {
             withTimeout(10_000) {
                 while (database.collectionDao().entryCount(playlistId) != 2) delay(50)
             }
-            scrollTo(hasText("Rename"))
+            scrollTo(hasContentDescription("Playlist options"))
+            compose.onNodeWithContentDescription("Playlist options").performClick()
             compose.onNodeWithText("Rename").performClick()
             compose.onNodeWithText("Playlist name").performTextReplacement("$name renamed")
             compose.onNodeWithText("Save").performClick()
@@ -135,6 +136,8 @@ class CollectionUiTest {
             compose.activityRule.scenario.recreate()
             waitForText("$name renamed")
             assertTrue(database.libraryDao().track(track.id).first()?.isFavourite == true)
+            scrollTo(hasContentDescription("Playlist options"))
+            compose.onNodeWithContentDescription("Playlist options").performClick()
             compose.onNode(hasText("Delete") and hasClickAction()).performClick()
             compose.onNode(hasText("Delete") and hasAnyAncestor(isDialog())).performClick()
             compose.waitUntil(10_000) {

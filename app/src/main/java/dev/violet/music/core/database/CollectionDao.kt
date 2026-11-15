@@ -6,11 +6,23 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import dev.violet.music.core.model.PlaylistSummary
+import dev.violet.music.core.model.SelectedTrack
 import kotlinx.coroutines.flow.Flow
 
 private const val PLAYLIST_SUMMARY =
     "SELECT p.id, p.name, p.coverFileName, COUNT(e.id) AS trackCount, MAX(t.artworkUri) AS artworkUri " +
         "FROM playlists p LEFT JOIN playlist_entries e ON e.playlistId = p.id LEFT JOIN tracks t ON t.id = e.trackId "
+
+private const val PLAYLIST_TRACKS =
+    " FROM playlist_entries e JOIN tracks t ON t.id = e.trackId WHERE e.playlistId = :id " +
+        "AND (:pattern = '' OR t.title LIKE :pattern ESCAPE '!' OR t.artistName LIKE :pattern ESCAPE '!' " +
+        "OR t.albumTitle LIKE :pattern ESCAPE '!' OR EXISTS(SELECT 1 FROM artist_credits c JOIN artists a " +
+        "ON a.id = c.artistId WHERE c.trackId = t.id AND $EFFECTIVE_CREDIT AND a.name LIKE :pattern ESCAPE '!'))"
+
+private const val PLAYLIST_ORDER =
+    " ORDER BY CASE WHEN :sort = 'TITLE' THEN t.title END COLLATE NOCASE, " +
+        "CASE WHEN :sort = 'ARTIST' THEN t.artistName END COLLATE NOCASE, " +
+        "CASE WHEN :sort = 'ADDED' THEN e.addedAt END DESC, e.position, e.id"
 
 @Dao
 interface CollectionDao {
@@ -45,16 +57,25 @@ interface CollectionDao {
         "SELECT e.id AS entryId, e.position, t.id, t.title, t.artistName, t.albumTitle, t.albumKey, " +
             "t.durationMs, t.artworkUri, t.availability, t.dateAdded, " +
             "(SELECT COALESCE(MAX(a.lastModified),0) FROM media_assets a WHERE a.trackId=t.id) AS artworkVersion, " +
-            "EXISTS(SELECT 1 FROM favourites f WHERE f.trackId = t.id) AS isFavourite " +
-            "FROM playlist_entries e JOIN tracks t ON t.id = e.trackId WHERE e.playlistId = :id ORDER BY e.position, e.id"
+            "EXISTS(SELECT 1 FROM favourites f WHERE f.trackId = t.id) AS isFavourite" +
+            PLAYLIST_TRACKS + PLAYLIST_ORDER
     )
-    fun entries(id: String): PagingSource<Int, PlaylistEntryRow>
+    fun entries(id: String, pattern: String = "", sort: String = "POSITION"): PagingSource<Int, PlaylistEntryRow>
 
     @Query(
-        "SELECT e.id AS entryId, e.trackId FROM playlist_entries e JOIN tracks t ON t.id = e.trackId " +
-            "WHERE e.playlistId = :id AND t.availability = 'LOCAL' ORDER BY e.position, e.id"
+        "SELECT e.id AS entryId, e.trackId" + PLAYLIST_TRACKS +
+            " AND t.availability = 'LOCAL'" + PLAYLIST_ORDER
     )
-    suspend fun queue(id: String): List<PlaylistQueueRow>
+    suspend fun queue(id: String, pattern: String = "", sort: String = "POSITION"): List<PlaylistQueueRow>
+
+    @Query(
+        "SELECT e.id AS `key`, e.trackId, (t.availability = 'LOCAL') AS available" +
+            PLAYLIST_TRACKS + PLAYLIST_ORDER + " LIMIT :limit OFFSET :offset"
+    )
+    suspend fun selectedEntries(id: String, pattern: String, sort: String, limit: Int, offset: Int): List<SelectedTrack>
+
+    @Query("SELECT EXISTS(SELECT 1" + PLAYLIST_TRACKS + " AND t.availability = 'LOCAL')")
+    fun hasPlayableTracks(id: String, pattern: String): Flow<Boolean>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertFavourite(favourite: FavouriteEntity)

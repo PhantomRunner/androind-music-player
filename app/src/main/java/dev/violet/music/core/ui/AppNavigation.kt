@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -21,6 +22,7 @@ import dev.violet.music.feature.search.SearchScreen
 import dev.violet.music.feature.search.SearchViewModel
 import dev.violet.music.feature.settings.SettingsScreen
 import dev.violet.music.feature.stats.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun AppNavigation(
@@ -35,7 +37,7 @@ fun AppNavigation(
     onPermission: () -> Unit,
     onAndroidSettings: () -> Unit,
     onTrackMenu: (Track, TrackFilter?, String?) -> Unit,
-    onPlaylistTrackMenu: (Track, String, String) -> Unit,
+    onPlaylistTrackMenu: (PlaylistMenuContext) -> Unit,
 ) {
     val state by library.uiState.collectAsStateWithLifecycle()
     val playback by player.uiState.collectAsStateWithLifecycle()
@@ -225,17 +227,32 @@ fun AppNavigation(
             val header by
                 remember(id) { collections.playlist(id) }
                     .collectAsStateWithLifecycle(PlaylistUiState())
-            val tracks = remember(id) { collections.entries(id) }
+            var query by rememberSaveable(id) { mutableStateOf("") }
+            var sort by rememberSaveable(id) { mutableStateOf(PlaylistSort.POSITION) }
+            val applied by produceState(query.trim(), query) {
+                if (query.isNotBlank()) delay(300)
+                value = query.trim()
+            }
+            val filter = PlaylistFilter(applied, sort)
+            val tracks = remember(id, filter) { collections.entries(id, filter) }
+            val playable by remember(id, applied) { collections.hasPlayableTracks(id, applied) }
+                .collectAsStateWithLifecycle(false)
             PlaylistScreen(
+                id,
                 header,
                 tracks,
-                onPlay = { player.playPlaylist(id, it) },
-                onPlayAll = { player.playPlaylist(id, shuffle = it) },
-                onMenu = { onTrackMenu(it, null, null) },
+                query,
+                filter,
+                canPlay = state.hasPermission && playable,
+                onQuery = { query = it },
+                onSort = { sort = it },
+                onPlay = { player.playPlaylist(id, it, filter = filter) },
+                onPlayAll = { player.playPlaylist(id, shuffle = it, filter = filter) },
+                onEntryMenu = { item ->
+                    onPlaylistTrackMenu(PlaylistMenuContext(id, item, filter, header.playlist?.trackCount ?: 0))
+                },
                 onRename = { collections.rename(id, it) },
                 onDelete = { collections.delete(id) { nav.popBackStack() } },
-                onMove = collections::move,
-                onRemove = collections::remove,
                 onAddTracks = {
                     collections.updateAddTracksQuery("")
                     nav.navigate("playlist/$id/add-tracks") { launchSingleTop = true }
@@ -245,8 +262,6 @@ fun AppNavigation(
                 coverBusy = coverBusy,
                 selection = selection,
                 collections = collections,
-                playlistId = id,
-                onEntryMenu = { onPlaylistTrackMenu(it.track, id, it.id) },
             )
         }
         composable(

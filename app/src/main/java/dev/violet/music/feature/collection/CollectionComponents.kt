@@ -107,6 +107,7 @@ fun TrackActionSheet(
     onArtist: () -> Unit,
     onAlbum: () -> Unit,
     onInfo: () -> Unit,
+    playlistActions: List<Pair<Int, () -> Unit>> = emptyList(),
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -142,11 +143,11 @@ fun TrackActionSheet(
             TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.add_to_playlist))
             }
-            listOf(
+            (playlistActions + listOf(
                     R.string.go_to_artist to onArtist,
                     R.string.go_to_album to onAlbum,
                     R.string.track_information to onInfo,
-                )
+                ))
                 .forEach { (label, action) ->
                     TextButton(
                         onClick = action,

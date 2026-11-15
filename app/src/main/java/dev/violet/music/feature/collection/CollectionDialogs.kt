@@ -13,11 +13,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import dev.violet.music.R
 import dev.violet.music.core.model.Track
+import dev.violet.music.core.model.PlaylistEntry
+import dev.violet.music.core.model.PlaylistFilter
 import dev.violet.music.core.model.TrackFilter
 import dev.violet.music.feature.player.PlayerViewModel
 
 /** Presentation state only; catalogue, favourites and credits are observed live. */
-data class PlaylistMenuContext(val id: String, val entryId: String)
+data class PlaylistMenuContext(
+    val id: String,
+    val entry: PlaylistEntry,
+    val filter: PlaylistFilter,
+    val trackCount: Int,
+)
 
 class CollectionDialogsState {
     var menuTrack by mutableStateOf<Track?>(null)
@@ -60,6 +67,7 @@ fun CollectionDialogs(
             remember(snapshot.id) { viewModel.track(snapshot.id) }
                 .collectAsStateWithLifecycle(snapshot)
         live?.let { track ->
+            val playlist = state.menuPlaylist
             fun close(action: () -> Unit) {
                 state.menuTrack = null
                 action()
@@ -72,8 +80,7 @@ fun CollectionDialogs(
                 onPlay = {
                     close {
                         val occurrence = state.menuOccurrence
-                        val playlist = state.menuPlaylist
-                        if (playlist != null) player.playPlaylist(playlist.id, playlist.entryId)
+                        if (playlist != null) player.playPlaylist(playlist.id, playlist.entry.id, filter = playlist.filter)
                         else if (occurrence != null) player.controller.playOccurrence(occurrence)
                         else player.play(track.id, state.menuFilter ?: TrackFilter())
                     }
@@ -83,6 +90,16 @@ fun CollectionDialogs(
                 onArtist = { close { state.artistTrackId = track.id } },
                 onAlbum = { close { onAlbum(track.albumKey, track.albumTitle) } },
                 onInfo = { close { state.infoTrackId = track.id } },
+                playlistActions = if (playlist != null) buildList {
+                    val entry = playlist.entry
+                    if (playlist.filter.canReorder && entry.position > 0) {
+                        add(R.string.move_up to { close { viewModel.move(entry.id, entry.position - 1) } })
+                    }
+                    if (playlist.filter.canReorder && entry.position < playlist.trackCount - 1) {
+                        add(R.string.move_down to { close { viewModel.move(entry.id, entry.position + 1) } })
+                    }
+                    add(R.string.remove_from_playlist to { close { viewModel.remove(entry.id) } })
+                } else emptyList(),
             )
         }
     }

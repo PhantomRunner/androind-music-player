@@ -4,15 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.PagingData
@@ -50,8 +45,6 @@ fun PlaylistTrackPickerScreen(
     val addition by collections.addition.collectAsStateWithLifecycle()
     val source =
         remember(playlistId, filter) { SelectionSource("playlist-add:$playlistId", filter) }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focus = LocalFocusManager.current
     val activity = LocalActivity.current
     LaunchedEffect(source) {
         selection.source(source)
@@ -89,27 +82,11 @@ fun PlaylistTrackPickerScreen(
                     Text(playlist.name, style = MaterialTheme.typography.titleMedium)
                 }
                 item("search") {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = onQuery,
+                    CatalogueSearchField(
+                        query,
+                        onQuery,
+                        stringResource(R.string.search_tracks_to_add),
                         enabled = !addition.pending,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.search_tracks_to_add)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions =
-                            KeyboardActions(
-                                onSearch = {
-                                    keyboard?.hide()
-                                    focus.clearFocus()
-                                }
-                            ),
-                        trailingIcon = {
-                            if (query.isNotEmpty())
-                                IconButton(onClick = { onQuery("") }, enabled = !addition.pending) {
-                                    Icon(VioletIcons.Close, stringResource(R.string.clear_search))
-                                }
-                        },
                     )
                 }
                 item("selection") {

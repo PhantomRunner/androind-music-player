@@ -5,6 +5,7 @@ import dev.violet.music.core.model.PlaylistAddItem
 import dev.violet.music.core.model.PlaylistAddResult
 import dev.violet.music.core.model.PlaylistDuplicatePolicy
 import dev.violet.music.core.model.PlaylistEntry
+import dev.violet.music.core.model.PlaylistFilter
 import dev.violet.music.core.model.PlaylistQueueItem
 import dev.violet.music.core.model.PlaylistSummary
 import kotlinx.coroutines.flow.Flow
@@ -21,9 +22,11 @@ interface CollectionRepository {
 
     fun observePlaylist(id: String): Flow<PlaylistSummary?>
 
-    fun entries(id: String): Flow<PagingData<PlaylistEntry>>
+    fun entries(id: String, filter: PlaylistFilter = PlaylistFilter()): Flow<PagingData<PlaylistEntry>>
 
-    suspend fun queue(id: String): List<PlaylistQueueItem>
+    fun hasPlayableTracks(id: String, query: String): Flow<Boolean>
+
+    suspend fun queue(id: String, filter: PlaylistFilter = PlaylistFilter()): List<PlaylistQueueItem>
 
     suspend fun create(name: String): String
 

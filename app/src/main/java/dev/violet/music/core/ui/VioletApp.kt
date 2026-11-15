@@ -257,12 +257,11 @@ fun VioletApp(
                     dialogs.menuOccurrence = occurrence
                     dialogs.menuPlaylist = null
                 },
-                onPlaylistTrackMenu = { track, id, entry ->
-                    dialogs.menuTrack = track
+                onPlaylistTrackMenu = { playlist ->
+                    dialogs.menuTrack = playlist.entry.track
                     dialogs.menuFilter = null
                     dialogs.menuOccurrence = null
-                    dialogs.menuPlaylist =
-                        dev.violet.music.feature.collection.PlaylistMenuContext(id, entry)
+                    dialogs.menuPlaylist = playlist
                 },
             )
         }

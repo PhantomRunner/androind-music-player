@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.violet.music.core.data.CollectionRepository
 import dev.violet.music.core.data.LibraryRepository
 import dev.violet.music.core.model.TrackFilter
+import dev.violet.music.core.model.PlaylistFilter
 import dev.violet.music.core.playback.PlaybackController
 import dev.violet.music.core.playback.PlaybackError
 import javax.inject.Inject
@@ -85,12 +86,17 @@ constructor(
         request = viewModelScope.launch { controller.playIds(ids, startIndex) }
     }
 
-    fun playPlaylist(id: String, entryId: String? = null, shuffle: Boolean = false) {
+    fun playPlaylist(
+        id: String,
+        entryId: String? = null,
+        shuffle: Boolean = false,
+        filter: PlaylistFilter = PlaylistFilter(),
+    ) {
         request?.cancel()
         request =
             viewModelScope.launch {
                 try {
-                    val queue = collections.queue(id)
+                    val queue = collections.queue(id, filter)
                     val index =
                         if (entryId == null) 0 else queue.indexOfFirst { it.entryId == entryId }
                     if (index < 0) {

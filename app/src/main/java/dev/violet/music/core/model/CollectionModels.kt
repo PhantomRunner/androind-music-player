@@ -12,6 +12,12 @@ data class PlaylistEntry(val id: String, val position: Int, val track: Track)
 
 data class PlaylistQueueItem(val entryId: String, val trackId: String)
 
+enum class PlaylistSort { POSITION, TITLE, ARTIST, ADDED }
+
+data class PlaylistFilter(val query: String = "", val sort: PlaylistSort = PlaylistSort.POSITION) {
+    val canReorder: Boolean get() = query.isBlank() && sort == PlaylistSort.POSITION
+}
+
 data class PlaylistAddItem(val key: String, val trackId: String)
 
 sealed interface PlaylistDuplicatePolicy {

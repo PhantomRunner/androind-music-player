@@ -9,6 +9,7 @@ import dev.violet.music.core.data.CollectionRepository
 import dev.violet.music.core.model.PlaylistAddItem
 import dev.violet.music.core.model.PlaylistAddResult
 import dev.violet.music.core.model.PlaylistDuplicatePolicy
+import dev.violet.music.core.model.PlaylistFilter
 import dev.violet.music.core.model.PlaylistSummary
 import java.util.UUID
 import javax.inject.Inject
@@ -105,7 +106,9 @@ constructor(
             .map { PlaylistUiState(loading = false, playlist = it) }
             .catch { emit(PlaylistUiState(loading = false)) }
 
-    fun entries(id: String) = repository.entries(id)
+    fun entries(id: String, filter: PlaylistFilter) = repository.entries(id, filter)
+
+    fun hasPlayableTracks(id: String, query: String) = repository.hasPlayableTracks(id, query)
 
     fun track(id: String) = library.observeTrack(id)
 

@@ -1,29 +1,19 @@
 package dev.violet.music.feature.collection
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
@@ -32,210 +22,158 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import dev.violet.music.R
 import dev.violet.music.core.model.PlaylistEntry
-import dev.violet.music.core.model.Track
-import dev.violet.music.core.ui.LoadingState
-import dev.violet.music.core.ui.MessageCard
-import dev.violet.music.core.ui.SectionTitle
-import dev.violet.music.core.ui.TrackRow
-import dev.violet.music.core.ui.VioletIcons
-import dev.violet.music.core.ui.coverUri
-import dev.violet.music.core.ui.trackCountLabel
+import dev.violet.music.core.model.PlaylistFilter
+import dev.violet.music.core.model.PlaylistSort
+import dev.violet.music.core.model.PlaylistSummary
+import dev.violet.music.core.model.SelectedTrack
+import dev.violet.music.core.model.SelectionSource
+import dev.violet.music.core.ui.*
+import dev.violet.music.core.ui.theme.VioletLayout
+import dev.violet.music.feature.selection.SelectionToolbar
+import dev.violet.music.feature.selection.SelectionViewModel
 import kotlinx.coroutines.flow.Flow
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 fun PlaylistScreen(
+    id: String,
     header: PlaylistUiState,
     entries: Flow<PagingData<PlaylistEntry>>,
+    query: String,
+    filter: PlaylistFilter,
+    canPlay: Boolean,
+    onQuery: (String) -> Unit,
+    onSort: (PlaylistSort) -> Unit,
     onPlay: (String) -> Unit,
     onPlayAll: (Boolean) -> Unit,
-    onMenu: (Track) -> Unit,
+    onEntryMenu: (PlaylistEntry) -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
-    onMove: (String, Int) -> Unit,
-    onRemove: (String) -> Unit,
     onAddTracks: () -> Unit,
-    onApplyCover: (android.net.Uri) -> Unit = {},
-    onRemoveCover: () -> Unit = {},
-    coverBusy: Boolean = false,
-    selection: dev.violet.music.feature.selection.SelectionViewModel? = null,
-    collections: CollectionViewModel? = null,
-    playlistId: String? = null,
-    onEntryMenu: ((dev.violet.music.core.model.PlaylistEntry) -> Unit)? = null,
+    onApplyCover: (android.net.Uri) -> Unit,
+    onRemoveCover: () -> Unit,
+    coverBusy: Boolean,
+    selection: SelectionViewModel,
+    collections: CollectionViewModel,
 ) {
     val items = entries.collectAsLazyPagingItems()
-    val selectionState =
-        selection?.uiState?.collectAsStateWithLifecycle()?.value
-            ?: dev.violet.music.feature.selection.SelectionUiState()
+    val selected by selection.uiState.collectAsStateWithLifecycle()
+    val source = SelectionSource("playlist:$id", playlistId = id, playlistFilter = filter)
+    val activity = LocalActivity.current
+    LaunchedEffect(source) { selection.source(source) }
+    DisposableEffect(id) {
+        onDispose {
+            if (activity?.isChangingConfigurations != true) selection.leave(source.context)
+        }
+    }
+
     var rename by rememberSaveable { mutableStateOf(false) }
     var delete by rememberSaveable { mutableStateOf(false) }
     val playlist = header.playlist
-    if (rename && playlist != null)
-        PlaylistNameDialog(playlist.name, { rename = false }) {
-            onRename(it)
-            rename = false
+    if (playlist != null) {
+        if (rename) {
+            PlaylistNameDialog(playlist.name, { rename = false }) {
+                onRename(it)
+                rename = false
+            }
         }
-    if (delete && playlist != null)
-        AlertDialog(
-            onDismissRequest = { delete = false },
-            title = { Text(stringResource(R.string.delete_playlist)) },
-            text = { Text(stringResource(R.string.delete_playlist_description, playlist.name)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+        if (delete) {
+            AlertDialog(
+                onDismissRequest = { delete = false },
+                title = { Text(stringResource(R.string.delete_playlist)) },
+                text = { Text(stringResource(R.string.delete_playlist_description, playlist.name)) },
+                confirmButton = {
+                    TextButton(onClick = {
                         delete = false
                         onDelete()
-                    }
-                ) {
-                    Text(stringResource(R.string.delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { delete = false }) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    LazyColumn(
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (header.loading) item { LoadingState() }
-        else if (playlist == null)
-            item {
-                MessageCard(
-                    stringResource(R.string.playlists),
-                    stringResource(R.string.playlist_unavailable),
-                )
-            }
-        else {
-            item { SectionTitle(playlist.name) }
-            item("add-tracks") {
-                Button(
-                    onClick = onAddTracks,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) {
-                    Text(
-                        stringResource(
-                            if (playlist.trackCount == 0) R.string.select_tracks
-                            else R.string.add_tracks
-                        )
-                    )
-                }
-            }
-            item { dev.violet.music.core.ui.Artwork(playlist.coverUri(), 160.dp) }
-            item { PlaylistCoverEditor(playlist, onApplyCover, onRemoveCover, coverBusy) }
-            if (
-                playlist.trackCount > 0 &&
-                    selection != null &&
-                    collections != null &&
-                    playlistId != null
-            )
-                item("selection") {
-                    dev.violet.music.feature.selection.SelectionToolbar(
-                        selection,
-                        dev.violet.music.core.model.SelectionSource(
-                            "playlist:$playlistId",
-                            playlistId = playlistId,
-                        ),
-                        collections,
-                        startLabel = R.string.select_playlist_tracks,
-                    )
-                }
-            item { Text(trackCountLabel(playlist.trackCount)) }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TextButton(onClick = { rename = true }) {
-                        Text(stringResource(R.string.rename))
-                    }
-                    TextButton(onClick = { delete = true }) {
+                    }) {
                         Text(stringResource(R.string.delete))
                     }
-                }
+                },
+                dismissButton = {
+                    TextButton(onClick = { delete = false }) { Text(stringResource(R.string.cancel)) }
+                },
+            )
+        }
+    }
+
+    val filterReady = query.trim() == filter.query
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(VioletLayout.contentPadding),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        when {
+            header.loading -> item("loading") { LoadingState() }
+            playlist == null -> item("unavailable") {
+                MessageCard(stringResource(R.string.playlists), stringResource(R.string.playlist_unavailable))
             }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(onClick = { onPlayAll(false) }, enabled = playlist.trackCount > 0) {
-                        Text(stringResource(R.string.play_all))
-                    }
-                    OutlinedButton(
-                        onClick = { onPlayAll(true) },
-                        enabled = playlist.trackCount > 0,
-                    ) {
-                        Text(stringResource(R.string.shuffle))
-                    }
-                }
-            }
-            if (items.itemCount == 0 && items.loadState.refresh !is LoadState.Loading)
-                item {
-                    MessageCard(
-                        stringResource(R.string.empty_playlist),
-                        stringResource(R.string.add_tracks_description),
+            else -> {
+                item("hero") { PlaylistHero(playlist) }
+                item("actions") {
+                    PlaylistActions(
+                        empty = playlist.trackCount == 0,
+                        canPlay = canPlay && filterReady,
+                        onPlayAll = onPlayAll,
+                        onAddTracks = onAddTracks,
+                        onRename = { rename = true },
+                        onDelete = { delete = true },
                     )
                 }
-            if (items.loadState.refresh is LoadState.Loading) item { LoadingState() }
-            if (items.loadState.hasError)
-                item {
-                    MessageCard(
-                        stringResource(R.string.playlists),
-                        stringResource(R.string.load_error),
-                        stringResource(R.string.retry),
-                        items::retry,
-                    )
+                item("cover-editor") { PlaylistCoverEditor(playlist, onApplyCover, onRemoveCover, coverBusy) }
+                if (playlist.trackCount > 0) {
+                    item("filter") {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            CatalogueSearchField(query, onQuery, stringResource(R.string.playlist_search))
+                            PlaylistSortMenu(filter.sort, onSort)
+                        }
+                    }
                 }
-            items(items.itemCount, key = items.itemKey { it.id }) { index ->
-                items[index]?.let { entry ->
-                    Column {
-                        fun toggle() {
-                            selection?.toggle(
-                                dev.violet.music.core.model.SelectedTrack(
-                                    entry.id,
-                                    entry.track.id,
-                                    entry.track.availability == "LOCAL",
-                                )
+                when {
+                    !filterReady || items.loadState.refresh is LoadState.Loading -> {
+                        item("tracks-loading") { LoadingState() }
+                    }
+                    items.loadState.refresh is LoadState.Error -> item("error") {
+                        PlaylistLoadError(items::retry)
+                    }
+                    items.itemCount == 0 -> item("empty") {
+                        if (playlist.trackCount == 0) {
+                            MessageCard(stringResource(R.string.empty_playlist), stringResource(R.string.add_tracks_description))
+                        } else {
+                            MessageCard(stringResource(R.string.search_empty), stringResource(R.string.search_empty_description))
+                        }
+                    }
+                    else -> {
+                        item("selection") {
+                            SelectionToolbar(
+                                selection,
+                                source,
+                                collections,
+                                clearOnDispose = false,
+                                startLabel = R.string.select_playlist_tracks,
                             )
                         }
-                        TrackRow(
-                            entry.track,
-                            onMenu = {
-                                if (onEntryMenu != null) onEntryMenu(entry) else onMenu(entry.track)
-                            },
-                            onLongClick = ::toggle,
-                            selected = entry.id in selectionState.selected,
-                            selecting = selectionState.active,
-                            onPlay = { if (selectionState.active) toggle() else onPlay(entry.id) },
-                        )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            IconButton(
-                                onClick = { onMove(entry.id, entry.position - 1) },
-                                enabled = entry.position > 0,
-                            ) {
-                                Icon(
-                                    VioletIcons.Back,
-                                    stringResource(R.string.move_up),
-                                    Modifier.rotate(90f),
+                        items(items.itemCount, key = items.itemKey { it.id }) { index ->
+                            items[index]?.let { entry ->
+                                val toggle = {
+                                    selection.toggle(
+                                        SelectedTrack(entry.id, entry.track.id, entry.track.availability == "LOCAL")
+                                    )
+                                }
+                                TrackRow(
+                                    entry.track,
+                                    onMenu = { onEntryMenu(entry) },
+                                    onLongClick = toggle,
+                                    selected = entry.id in selected.selected,
+                                    selecting = selected.active,
+                                    onPlay = { if (selected.active) toggle() else onPlay(entry.id) },
                                 )
                             }
-                            IconButton(
-                                onClick = { onMove(entry.id, entry.position + 1) },
-                                enabled = entry.position < playlist.trackCount - 1,
-                            ) {
-                                Icon(
-                                    VioletIcons.Back,
-                                    stringResource(R.string.move_down),
-                                    Modifier.rotate(-90f),
-                                )
-                            }
-                            IconButton(onClick = { onRemove(entry.id) }) {
-                                Icon(
-                                    VioletIcons.Close,
-                                    stringResource(R.string.remove_from_playlist),
-                                )
-                            }
+                        }
+                        when (items.loadState.append) {
+                            is LoadState.Loading -> item("append-loading") { LoadingState() }
+                            is LoadState.Error -> item("append-error") { PlaylistLoadError(items::retry) }
+                            else -> Unit
                         }
                     }
                 }
@@ -243,3 +181,132 @@ fun PlaylistScreen(
         }
     }
 }
+
+@Composable
+private fun PlaylistHero(playlist: PlaylistSummary) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier.fillMaxWidth().background(
+            Brush.verticalGradient(listOf(colors.primaryContainer.copy(alpha = 0.38f), colors.background)),
+            MaterialTheme.shapes.large,
+        ).padding(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Artwork(playlist.coverUri(), modifier = Modifier.widthIn(max = 250.dp).fillMaxWidth().aspectRatio(1f))
+        Text(
+            playlist.name,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.headlineLarge,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            trackCountLabel(playlist.trackCount),
+            color = colors.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlaylistActions(
+    empty: Boolean,
+    canPlay: Boolean,
+    onPlayAll: (Boolean) -> Unit,
+    onAddTracks: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (empty) {
+            Button(onClick = onAddTracks, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.select_tracks))
+            }
+        } else {
+            Button(onClick = { onPlayAll(false) }, enabled = canPlay, modifier = Modifier.heightIn(min = 48.dp)) {
+                Icon(PlaybackIcons.Play, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.play_all))
+            }
+            FilledTonalButton(
+                onClick = { onPlayAll(true) },
+                enabled = canPlay,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Icon(PlaybackIcons.Shuffle, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.shuffle))
+            }
+            TextButton(onClick = onAddTracks, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.add_tracks))
+            }
+        }
+        var expanded by remember { mutableStateOf(false) }
+        Box {
+            IconButton(onClick = { expanded = true }) {
+                Icon(PlaybackIcons.More, stringResource(R.string.playlist_options))
+            }
+            DropdownMenu(expanded, { expanded = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.rename)) },
+                    onClick = {
+                        expanded = false
+                        onRename()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete)) },
+                    onClick = {
+                        expanded = false
+                        onDelete()
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistSortMenu(sort: PlaylistSort, onSort: (PlaylistSort) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { expanded = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(stringResource(R.string.sort_by_value, stringResource(sort.label)))
+        }
+        DropdownMenu(expanded, { expanded = false }) {
+            for (option in PlaylistSort.entries) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.label)) },
+                    onClick = {
+                        expanded = false
+                        onSort(option)
+                    },
+                    leadingIcon = { if (option == sort) Icon(PlaybackIcons.Play, null) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistLoadError(onRetry: () -> Unit) {
+    MessageCard(
+        stringResource(R.string.playlists),
+        stringResource(R.string.load_error),
+        stringResource(R.string.retry),
+        onRetry,
+    )
+}
+
+private val PlaylistSort.label: Int
+    get() = when (this) {
+        PlaylistSort.POSITION -> R.string.playlist_order
+        PlaylistSort.TITLE -> R.string.title_asc
+        PlaylistSort.ARTIST -> R.string.playlist_sort_artist
+        PlaylistSort.ADDED -> R.string.recently_added
+    }

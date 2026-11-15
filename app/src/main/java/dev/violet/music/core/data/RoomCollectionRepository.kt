@@ -12,6 +12,7 @@ import dev.violet.music.core.model.PlaylistAddItem
 import dev.violet.music.core.model.PlaylistAddResult
 import dev.violet.music.core.model.PlaylistDuplicatePolicy
 import dev.violet.music.core.model.PlaylistEntry
+import dev.violet.music.core.model.PlaylistFilter
 import dev.violet.music.core.model.PlaylistQueueItem
 import dev.violet.music.core.model.validatedPlaylistName
 import java.util.UUID
@@ -47,13 +48,17 @@ class RoomCollectionRepository @Inject constructor(private val database: MusicDa
 
     override fun observePlaylist(id: String) = dao.playlist(id)
 
-    override fun entries(id: String) =
-        Pager(config) { dao.entries(id) }
+    override fun entries(id: String, filter: PlaylistFilter) =
+        Pager(config) { dao.entries(id, searchPattern(filter.query), filter.sort.name) }
             .flow
             .map { page -> page.map { PlaylistEntry(it.entryId, it.position, it.track) } }
 
-    override suspend fun queue(id: String) =
-        dao.queue(id).map { PlaylistQueueItem(it.entryId, it.trackId) }
+    override fun hasPlayableTracks(id: String, query: String) =
+        dao.hasPlayableTracks(id, searchPattern(query))
+
+    override suspend fun queue(id: String, filter: PlaylistFilter) =
+        dao.queue(id, searchPattern(filter.query), filter.sort.name)
+            .map { PlaylistQueueItem(it.entryId, it.trackId) }
 
     override suspend fun create(name: String): String {
         val validName = validatedPlaylistName(name)

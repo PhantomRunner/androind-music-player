@@ -180,6 +180,10 @@
     <string name="add_tracks">Add tracks</string>
     <string name="add_tracks_description">Choose songs from your library to add to this playlist.</string>
     <string name="search_tracks_to_add">Search tracks to add</string>
+    <string name="playlist_search">Find in playlist</string>
+    <string name="playlist_order">Playlist order</string>
+    <string name="playlist_sort_artist">Artist A–Z</string>
+    <string name="playlist_options">Playlist options</string>
     <string name="checking_playlist_tracks">Checking playlist tracks…</string>
     <string name="playlist_duplicates">Repeated tracks</string>
     <plurals name="playlist_duplicate_count">

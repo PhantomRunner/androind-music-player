@@ -1,7 +1,6 @@
 package dev.violet.music.core.data
 
 import androidx.room.withTransaction
-import androidx.sqlite.db.SimpleSQLiteQuery
 import dev.violet.music.core.database.*
 import dev.violet.music.core.model.*
 import javax.inject.Inject
@@ -34,14 +33,9 @@ class SelectionRepository @Inject constructor(private val database: MusicDatabas
 
     suspend fun page(source: SelectionSource, offset: Int, limit: Int = 100): List<SelectedTrack> {
         source.playlistId?.let { id ->
-            return database
-                .libraryDao()
-                .selection(
-                    SimpleSQLiteQuery(
-                        "SELECT e.id AS `key`,e.trackId,(t.availability='LOCAL') AS available FROM playlist_entries e JOIN tracks t ON t.id=e.trackId WHERE e.playlistId=? ORDER BY e.position,e.id LIMIT ? OFFSET ?",
-                        arrayOf<Any>(id, limit, offset),
-                    )
-                )
+            val filter = source.playlistFilter
+            return database.collectionDao()
+                .selectedEntries(id, searchPattern(filter.query), filter.sort.name, limit, offset)
         }
         val filter = source.filter ?: return emptyList()
         val size = filter.limit?.let { minOf(limit, (it - offset).coerceAtLeast(0)) } ?: limit

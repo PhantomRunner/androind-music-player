@@ -5,12 +5,17 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.violet.music.core.data.RoomCollectionRepository
+import dev.violet.music.core.data.SelectionRepository
+import dev.violet.music.core.data.searchPattern
 import dev.violet.music.core.media.DeviceAudio
 import dev.violet.music.core.media.DeviceScanner
 import dev.violet.music.core.media.LibraryIndexer
 import dev.violet.music.core.model.PlaylistAddItem
 import dev.violet.music.core.model.PlaylistAddResult
 import dev.violet.music.core.model.PlaylistDuplicatePolicy
+import dev.violet.music.core.model.PlaylistFilter
+import dev.violet.music.core.model.PlaylistSort
+import dev.violet.music.core.model.SelectionSource
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -147,6 +152,30 @@ class CollectionIntegrationTest {
     }
 
     @Test
+    fun playlistFilterAndSortAreSharedByEntriesSelectionAndPlayback() = runBlocking {
+        val id = repository.create("Playlist browsing fixture")
+        val tracks = listOf(ids[2], ids[0], ids[1], ids[0]).mapIndexed { index, trackId ->
+            PlaylistAddItem("entry-$index", trackId)
+        }
+        repository.addTracks(id, tracks, "fixture", PlaylistDuplicatePolicy.Allow(setOf("entry-3")))
+        val original = entries(id)
+        val title = PlaylistFilter(sort = PlaylistSort.TITLE)
+        val sorted = listOf(original[1], original[3], original[2], original[0]).map { it.entryId }
+        assertEquals(sorted, entries(id, title).map { it.entryId })
+        assertEquals(sorted, repository.queue(id, title).map { it.entryId })
+
+        val filtered = title.copy(query = "fixture 1")
+        val matching = sorted.take(2)
+        assertEquals(matching, entries(id, filtered).map { it.entryId })
+        assertEquals(matching, repository.queue(id, filtered).map { it.entryId })
+        val source = SelectionSource("filtered", playlistId = id, playlistFilter = filtered)
+        assertEquals(matching, SelectionRepository(database).page(source, 0).map { it.key })
+        assertTrue(repository.hasPlayableTracks(id, filtered.query).first())
+        assertTrue(repository.queue(id, filtered.copy(query = "%")).isEmpty())
+        assertEquals(original, entries(id))
+    }
+
+    @Test
     fun collectionsSurviveDatabaseReopen() = runBlocking {
         val name = "collection-test-${UUID.randomUUID()}.db"
         var db = Room.databaseBuilder(context, MusicDatabase::class.java, name).build()
@@ -169,8 +198,9 @@ class CollectionIntegrationTest {
     private suspend fun RoomCollectionRepository.addFixtureTrack(playlistId: String, trackId: String) =
         addTracks(playlistId, listOf(PlaylistAddItem(trackId, trackId)), UUID.randomUUID().toString())
 
-    private suspend fun entries(id: String): List<PlaylistEntryRow> {
-        return when (val result = database.collectionDao().entries(id).load(PagingSource.LoadParams.Refresh<Int>(null, 50, false))) {
+    private suspend fun entries(id: String, filter: PlaylistFilter = PlaylistFilter()): List<PlaylistEntryRow> {
+        val paging = database.collectionDao().entries(id, searchPattern(filter.query), filter.sort.name)
+        return when (val result = paging.load(PagingSource.LoadParams.Refresh<Int>(null, 50, false))) {
             is PagingSource.LoadResult.Page -> result.data
             is PagingSource.LoadResult.Error -> throw result.throwable
             is PagingSource.LoadResult.Invalid -> error("Unexpected invalidation")
