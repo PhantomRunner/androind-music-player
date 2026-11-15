@@ -9,7 +9,15 @@ import dev.violet.music.core.model.Track
 
 @Entity(
     tableName = "favourites",
-    foreignKeys = [ForeignKey(entity = TrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"], onDelete = ForeignKey.RESTRICT)],
+    foreignKeys =
+        [
+            ForeignKey(
+                entity = TrackEntity::class,
+                parentColumns = ["id"],
+                childColumns = ["trackId"],
+                onDelete = ForeignKey.RESTRICT,
+            )
+        ],
 )
 data class FavouriteEntity(@PrimaryKey val trackId: String, val createdAt: Long)
 
@@ -21,14 +29,26 @@ data class PlaylistEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val localRevision: Long = 1,
+    val coverFileName: String? = null,
 )
 
 @Entity(
     tableName = "playlist_entries",
-    foreignKeys = [
-        ForeignKey(entity = PlaylistEntity::class, parentColumns = ["id"], childColumns = ["playlistId"], onDelete = ForeignKey.CASCADE),
-        ForeignKey(entity = TrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"], onDelete = ForeignKey.RESTRICT),
-    ],
+    foreignKeys =
+        [
+            ForeignKey(
+                entity = PlaylistEntity::class,
+                parentColumns = ["id"],
+                childColumns = ["playlistId"],
+                onDelete = ForeignKey.CASCADE,
+            ),
+            ForeignKey(
+                entity = TrackEntity::class,
+                parentColumns = ["id"],
+                childColumns = ["trackId"],
+                onDelete = ForeignKey.RESTRICT,
+            ),
+        ],
     indices = [Index(value = ["playlistId", "position"]), Index("trackId")],
 )
 data class PlaylistEntryEntity(
@@ -40,4 +60,5 @@ data class PlaylistEntryEntity(
 )
 
 data class PlaylistEntryRow(val entryId: String, val position: Int, @Embedded val track: Track)
+
 data class PlaylistQueueRow(val entryId: String, val trackId: String)

@@ -15,6 +15,7 @@ data class DeviceAudio(
     val lastModified: Long,
     val sizeBytes: Long,
     val mimeType: String?,
+    val albumArtistName: String? = null,
 )
 
 fun interface DeviceScanner {
@@ -24,15 +25,23 @@ fun interface DeviceScanner {
 
 interface CatalogueWriter {
     suspend fun importBatch(records: List<DeviceAudio>, scanId: String)
+
     suspend fun completeScan(scanId: String, completedAt: Long)
 }
 
-enum class ScanFailure { PERMISSION, STORAGE_CHANGED, PROVIDER }
+enum class ScanFailure {
+    PERMISSION,
+    STORAGE_CHANGED,
+    PROVIDER,
+}
 
 sealed interface ScanStatus {
     data object Idle : ScanStatus
+
     data class Running(val processed: Int = 0) : ScanStatus
+
     data class Complete(val processed: Int) : ScanStatus
+
     data class Failed(val reason: ScanFailure) : ScanStatus
 }
 

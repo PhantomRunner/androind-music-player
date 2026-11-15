@@ -1,5 +1,6 @@
 package dev.violet.music.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -21,14 +22,20 @@ data class TrackEntity(
     val origin: String = "DEVICE",
     val availability: String = "LOCAL",
     val dateAdded: Long,
+    val albumArtistName: String? = null,
 )
 
 @Entity(
     tableName = "media_assets",
-    foreignKeys = [ForeignKey(
-        entity = TrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"],
-        onDelete = ForeignKey.RESTRICT,
-    )],
+    foreignKeys =
+        [
+            ForeignKey(
+                entity = TrackEntity::class,
+                parentColumns = ["id"],
+                childColumns = ["trackId"],
+                onDelete = ForeignKey.RESTRICT,
+            )
+        ],
     indices = [Index("trackId"), Index(value = ["volumeName", "mediaStoreId"], unique = true)],
 )
 data class MediaAssetEntity(
@@ -42,6 +49,7 @@ data class MediaAssetEntity(
     val sizeBytes: Long,
     val mimeType: String?,
     val lastModified: Long,
+    @ColumnInfo(defaultValue = "0") val metadataVersion: Int = 0,
 )
 
 @Entity(tableName = "scan_state")

@@ -8,14 +8,31 @@ import kotlinx.coroutines.flow.Flow
 
 interface CollectionRepository {
     fun playlists(): Flow<PagingData<PlaylistSummary>>
+
+    fun recentPlaylists(): Flow<List<PlaylistSummary>>
+
+    fun filteredPlaylists(
+        query: String,
+        sort: dev.violet.music.core.model.SummarySort,
+    ): Flow<PagingData<PlaylistSummary>>
+
     fun observePlaylist(id: String): Flow<PlaylistSummary?>
+
     fun entries(id: String): Flow<PagingData<PlaylistEntry>>
+
     suspend fun queue(id: String): List<PlaylistQueueItem>
+
     suspend fun create(name: String): String
+
     suspend fun rename(id: String, name: String)
-    suspend fun delete(id: String)
+
+    suspend fun delete(id: String): String?
+
     suspend fun setFavourite(trackId: String, favourite: Boolean)
+
     suspend fun addTrack(playlistId: String, trackId: String)
+
     suspend fun removeEntry(entryId: String)
+
     suspend fun moveEntry(entryId: String, position: Int)
 }

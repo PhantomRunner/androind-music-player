@@ -11,6 +11,7 @@ data class Track(
     val availability: String,
     val dateAdded: Long,
     val isFavourite: Boolean = false,
+    val artworkVersion: Long = 0,
 )
 
 data class AlbumSummary(
@@ -21,7 +22,13 @@ data class AlbumSummary(
     val trackCount: Int,
 )
 
-data class ArtistSummary(val name: String, val trackCount: Int, val albumCount: Int)
+data class ArtistSummary(
+    val name: String,
+    val trackCount: Int,
+    val albumCount: Int,
+    val id: String,
+    val artworkUri: String?,
+)
 
 data class LibraryStats(
     val trackCount: Int = 0,
@@ -36,4 +43,9 @@ data class TrackFilter(
     val artistName: String? = null,
     val recentlyAddedFirst: Boolean = false,
     val favouritesOnly: Boolean = false,
+    val artistId: String? = null,
+    val sort: TrackSort = TrackSort.TITLE_ASC,
+    val periodStart: Long = 0,
+    val qualifiedOnly: Boolean = false,
+    val limit: Int? = null,
 )

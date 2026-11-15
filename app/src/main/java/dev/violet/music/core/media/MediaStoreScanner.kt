@@ -17,63 +17,73 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
-class MediaStoreScanner @Inject constructor(
-    @param:ApplicationContext private val context: Context,
-) : DeviceScanner {
-    override suspend fun scan(onBatch: suspend (List<DeviceAudio>) -> Unit) = withContext(Dispatchers.IO) {
-        checkPermission()
-        val volumes = mountedVolumes()
-        if (volumes.isEmpty()) throw StorageChangedException()
-        for (volume in volumes.sorted()) {
-            val collection = if (Build.VERSION.SDK_INT >= 29) {
-                MediaStore.Audio.Media.getContentUri(volume)
-            } else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-            query(collection).use { cursor ->
-                // A null cursor is a failed query, never an empty successful scan.
-                checkNotNull(cursor) { "Media provider returned no cursor" }
-                val columns = Columns(cursor)
-                val batch = ArrayList<DeviceAudio>(BATCH_SIZE)
-                while (cursor.moveToNext()) {
-                    currentCoroutineContext().ensureActive()
-                    batch += columns.read(cursor, volume, collection)
-                    if (batch.size == BATCH_SIZE) {
-                        onBatch(batch.toList())
-                        batch.clear()
+class MediaStoreScanner
+@Inject
+constructor(@param:ApplicationContext private val context: Context) : DeviceScanner {
+    override suspend fun scan(onBatch: suspend (List<DeviceAudio>) -> Unit) =
+        withContext(Dispatchers.IO) {
+            checkPermission()
+            val volumes = mountedVolumes()
+            if (volumes.isEmpty()) throw StorageChangedException()
+            for (volume in volumes.sorted()) {
+                val collection =
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        MediaStore.Audio.Media.getContentUri(volume)
+                    } else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                query(collection).use { cursor ->
+                    // A null cursor is a failed query, never an empty successful scan.
+                    checkNotNull(cursor) { "Media provider returned no cursor" }
+                    val columns = Columns(cursor)
+                    val batch = ArrayList<DeviceAudio>(BATCH_SIZE)
+                    while (cursor.moveToNext()) {
+                        currentCoroutineContext().ensureActive()
+                        batch += columns.read(cursor, volume, collection)
+                        if (batch.size == BATCH_SIZE) {
+                            onBatch(batch.toList())
+                            batch.clear()
+                        }
                     }
+                    if (batch.isNotEmpty()) onBatch(batch.toList())
                 }
-                if (batch.isNotEmpty()) onBatch(batch.toList())
             }
+            checkPermission()
+            if (volumes != mountedVolumes()) throw StorageChangedException()
         }
-        checkPermission()
-        if (volumes != mountedVolumes()) throw StorageChangedException()
-    }
 
     private fun checkPermission() {
         if (!AudioPermission.isGranted(context)) throw SecurityException("Audio access required")
     }
 
-    private fun mountedVolumes(): Set<String> = if (Build.VERSION.SDK_INT >= 29) {
-        MediaStore.getExternalVolumeNames(context)
-    } else {
-        when (Environment.getExternalStorageState()) {
-            Environment.MEDIA_MOUNTED, Environment.MEDIA_MOUNTED_READ_ONLY -> setOf("external")
-            else -> emptySet()
+    private fun mountedVolumes(): Set<String> =
+        if (Build.VERSION.SDK_INT >= 29) {
+            MediaStore.getExternalVolumeNames(context)
+        } else {
+            when (Environment.getExternalStorageState()) {
+                Environment.MEDIA_MOUNTED,
+                Environment.MEDIA_MOUNTED_READ_ONLY -> setOf("external")
+                else -> emptySet()
+            }
         }
-    }
 
-    private suspend fun query(collection: Uri): Cursor? = suspendCancellableCoroutine { continuation ->
-        val signal = CancellationSignal()
-        continuation.invokeOnCancellation { signal.cancel() }
-        try {
-            val cursor = context.contentResolver.query(
-                collection, PROJECTION, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null,
-                "${MediaStore.Audio.Media._ID} ASC", signal,
-            )
-            continuation.resume(cursor) { _, result, _ -> result?.close() }
-        } catch (error: Exception) {
-            continuation.resumeWith(Result.failure(error))
+    private suspend fun query(collection: Uri): Cursor? =
+        suspendCancellableCoroutine { continuation ->
+            val signal = CancellationSignal()
+            continuation.invokeOnCancellation { signal.cancel() }
+            try {
+                val cursor =
+                    context.contentResolver.query(
+                        collection,
+                        PROJECTION,
+                        "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                        null,
+                        "${MediaStore.Audio.Media._ID} ASC",
+                        signal,
+                    )
+                continuation.resume(cursor) { _, result, _ -> result?.close() }
+            } catch (error: Exception) {
+                continuation.resumeWith(Result.failure(error))
+            }
         }
-    }
 
     private class Columns(cursor: Cursor) {
         private val id = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -87,6 +97,7 @@ class MediaStoreScanner @Inject constructor(
         private val modified = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
         private val size = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
         private val mime = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+        private val albumArtist = cursor.getColumnIndex("album_artist")
 
         fun read(cursor: Cursor, volume: String, collection: Uri): DeviceAudio {
             val mediaId = cursor.getLong(id)
@@ -96,20 +107,25 @@ class MediaStoreScanner @Inject constructor(
                 volume = volume,
                 mediaId = mediaId,
                 contentUri = ContentUris.withAppendedId(collection, mediaId).toString(),
-                title = normalizeMetadata(cursor.getString(title))
-                    ?: normalizeMetadata(cursor.getString(displayName))?.substringBeforeLast('.')
-                    ?: "Untitled track",
+                title =
+                    normalizeMetadata(cursor.getString(title))
+                        ?: normalizeMetadata(cursor.getString(displayName))
+                            ?.substringBeforeLast('.')
+                        ?: "Untitled track",
                 artist = normalizeMetadata(cursor.getString(artist)) ?: "Unknown artist",
                 album = normalizeMetadata(cursor.getString(album)) ?: "Unknown album",
                 albumKey = "$volume:$albumMediaId",
-                artworkUri = albumMediaId.takeIf { it > 0 }?.let {
-                    ContentUris.withAppendedId(albumCollection, it).toString()
-                },
+                artworkUri =
+                    albumMediaId
+                        .takeIf { it > 0 }
+                        ?.let { ContentUris.withAppendedId(albumCollection, it).toString() },
                 durationMs = cursor.getLong(duration).coerceAtLeast(0),
                 dateAdded = cursor.getLong(added).coerceAtLeast(0),
                 lastModified = cursor.getLong(modified).coerceAtLeast(0),
                 sizeBytes = cursor.getLong(size).coerceAtLeast(0),
                 mimeType = cursor.getString(mime),
+                albumArtistName =
+                    if (albumArtist >= 0) normalizeMetadata(cursor.getString(albumArtist)) else null,
             )
         }
     }
@@ -117,13 +133,21 @@ class MediaStoreScanner @Inject constructor(
     companion object {
         // Only metadata is buffered; the cursor owns its bounded platform CursorWindow.
         const val BATCH_SIZE = 128
-        private val PROJECTION = arrayOf(
-            MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.DATE_MODIFIED, MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.MIME_TYPE,
-        )
+        private val PROJECTION =
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.DATE_ADDED,
+                MediaStore.Audio.Media.DATE_MODIFIED,
+                MediaStore.Audio.Media.SIZE,
+                MediaStore.Audio.Media.MIME_TYPE,
+            ) +
+                if (Build.VERSION.SDK_INT >= 30) arrayOf(MediaStore.Audio.Media.ALBUM_ARTIST)
+                else emptyArray()
     }
 }
