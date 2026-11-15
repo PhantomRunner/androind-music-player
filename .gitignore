@@ -1,0 +1,13 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+.idea/
+*.iml
+*.jks
+*.keystore
+.DS_Store
+/AGENTS.md
+/CODEX_M0_M1_PROMPT.md
+/TECHNICAL_DESIGN.md
+
