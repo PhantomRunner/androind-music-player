@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +23,57 @@ import dev.violet.music.core.media.ScanFailure
 import dev.violet.music.core.media.ScanStatus
 import dev.violet.music.feature.library.LibraryUiState
 
+fun LazyGridScope.libraryNotices(
+    state: LibraryUiState,
+    onPermission: () -> Unit,
+    onSettings: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    if (!state.hasPermission)
+        item("notice:permission", span = { GridItemSpan(maxLineSpan) }) {
+            PermissionCard(onPermission, onSettings)
+        }
+    if (state.scanStatus is ScanStatus.Running || state.scanStatus is ScanStatus.Failed)
+        item("notice:scan-status", span = { GridItemSpan(maxLineSpan) }) {
+            ScanNotice(state, onRefresh)
+        }
+    if (state.catalogueError)
+        item("notice:catalogue-error", span = { GridItemSpan(maxLineSpan) }) {
+            MessageCard(stringResource(R.string.library), stringResource(R.string.load_error))
+        }
+}
+
+@Composable
+private fun ScanNotice(state: LibraryUiState, onRefresh: () -> Unit) {
+    when (val scan = state.scanStatus) {
+        is ScanStatus.Running ->
+            Column(
+                Modifier.padding(vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.scanning, trackCountLabel(scan.processed)),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        is ScanStatus.Failed ->
+            MessageCard(
+                stringResource(R.string.indexing_title),
+                stringResource(
+                    when (scan.reason) {
+                        ScanFailure.PERMISSION -> R.string.scan_permission_error
+                        ScanFailure.STORAGE_CHANGED -> R.string.scan_storage_error
+                        ScanFailure.PROVIDER -> R.string.scan_error
+                    }
+                ),
+                if (state.hasPermission) stringResource(R.string.retry) else null,
+                onRefresh,
+            )
+        else -> Unit
+    }
+}
+
 fun LazyListScope.libraryNotices(
     state: LibraryUiState,
     onPermission: () -> Unit,
@@ -29,36 +82,57 @@ fun LazyListScope.libraryNotices(
 ) {
     if (!state.hasPermission) item("notice:permission") { PermissionCard(onPermission, onSettings) }
     when (val scan = state.scanStatus) {
-        is ScanStatus.Running -> item("notice:scan-status") {
-            Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.scanning, trackCountLabel(scan.processed)), color = MaterialTheme.colorScheme.primary)
-                LinearProgressIndicator(Modifier.fillMaxWidth())
+        is ScanStatus.Running ->
+            item("notice:scan-status") {
+                Column(
+                    Modifier.padding(vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.scanning, trackCountLabel(scan.processed)),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
             }
-        }
-        is ScanStatus.Failed -> item("notice:scan-status") {
-            val description = when (scan.reason) {
-                ScanFailure.PERMISSION -> R.string.scan_permission_error
-                ScanFailure.STORAGE_CHANGED -> R.string.scan_storage_error
-                ScanFailure.PROVIDER -> R.string.scan_error
+        is ScanStatus.Failed ->
+            item("notice:scan-status") {
+                val description =
+                    when (scan.reason) {
+                        ScanFailure.PERMISSION -> R.string.scan_permission_error
+                        ScanFailure.STORAGE_CHANGED -> R.string.scan_storage_error
+                        ScanFailure.PROVIDER -> R.string.scan_error
+                    }
+                MessageCard(
+                    stringResource(R.string.indexing_title),
+                    stringResource(description),
+                    if (state.hasPermission) stringResource(R.string.retry) else null,
+                    onRefresh,
+                )
             }
-            MessageCard(
-                stringResource(R.string.indexing_title), stringResource(description),
-                if (state.hasPermission) stringResource(R.string.retry) else null, onRefresh,
-            )
-        }
         else -> Unit
     }
-    if (state.catalogueError) item("notice:catalogue-error") {
-        MessageCard(stringResource(R.string.library), stringResource(R.string.load_error))
-    }
+    if (state.catalogueError)
+        item("notice:catalogue-error") {
+            MessageCard(stringResource(R.string.library), stringResource(R.string.load_error))
+        }
 }
 
 @Composable
 fun PermissionCard(onPermission: () -> Unit, onSettings: () -> Unit) {
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.permission_title), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.permission_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(
+            Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(R.string.permission_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                stringResource(R.string.permission_description),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Button(onClick = onPermission, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.grant_access))
             }
