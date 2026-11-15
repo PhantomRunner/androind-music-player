@@ -53,7 +53,7 @@ fun Artwork(uri: String?, size: Dp = 56.dp) {
         Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(VioletIcons.Music, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(VioletIcons.Music, contentDescription = null, modifier = Modifier.size(size * 0.4f), tint = MaterialTheme.colorScheme.primary)
         if (uri != null) AsyncImage(
             model = uri, contentDescription = null, contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
@@ -64,9 +64,12 @@ fun Artwork(uri: String?, size: Dp = 56.dp) {
 @Composable
 fun TrackRow(track: Track, onMenu: (() -> Unit)? = null, onPlay: (() -> Unit)? = null) {
     val playLabel = stringResource(R.string.play)
+    val playModifier = if (onPlay != null && track.availability == "LOCAL") {
+        Modifier.clickable(role = Role.Button, onClickLabel = playLabel, onClick = onPlay)
+    } else Modifier
     Row(
         Modifier.fillMaxWidth().heightIn(min = 80.dp)
-            .clickable(enabled = onPlay != null && track.availability == "LOCAL", role = Role.Button, onClickLabel = playLabel) { onPlay?.invoke() }
+            .then(playModifier)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

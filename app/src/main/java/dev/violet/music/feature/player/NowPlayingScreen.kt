@@ -41,6 +41,9 @@ fun NowPlayingScreen(state: PlaybackUiState, controller: PlaybackController, tra
     val seekLabel = stringResource(R.string.seek)
     LazyColumn(contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item { SectionTitle(stringResource(R.string.now_playing)) }
+        if (!state.connected) item {
+            MessageCard(stringResource(R.string.player_unavailable), stringResource(R.string.connection_error), stringResource(R.string.retry), controller::reconnect)
+        }
         if (current == null) item {
             MessageCard(stringResource(R.string.nothing_playing), stringResource(R.string.choose_track))
         } else {

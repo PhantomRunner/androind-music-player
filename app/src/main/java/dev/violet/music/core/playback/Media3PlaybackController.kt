@@ -91,13 +91,15 @@ class Media3PlaybackController @Inject constructor(
     }
 
     private suspend fun connectedController(): MediaController {
-        controller?.let { return it }
+        controller?.takeIf { it.isConnected }?.let { return it }
         val pending = future ?: MediaController.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java)))
             .setListener(object : MediaController.Listener {
                 override fun onDisconnected(disconnected: MediaController) {
                     if (controller !== disconnected) return
                     controller = null
                     future = null
+                    disconnected.removeListener(listener)
+                    disconnected.release()
                     positionJob?.cancel()
                     mutableState.value = mutableState.value.copy(connected = false, isPlaying = false, error = PlaybackError.CONNECTION)
                     reconnect()

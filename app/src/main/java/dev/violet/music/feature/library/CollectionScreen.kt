@@ -3,6 +3,8 @@ package dev.violet.music.feature.library
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.Button
@@ -20,6 +22,7 @@ import dev.violet.music.core.ui.pagedTracks
 import kotlinx.coroutines.flow.Flow
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun CollectionScreen(
     title: String,
     state: LibraryUiState,
@@ -36,7 +39,7 @@ fun CollectionScreen(
         item("title") { SectionTitle(title) }
         libraryNotices(state, onPermission, onSettings, onRefresh)
         if (items.itemCount > 0 && state.hasPermission) item("play-actions") {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onPlayAll(false) }) { Text(stringResource(R.string.play_all)) }
                 OutlinedButton(onClick = { onPlayAll(true) }) { Text(stringResource(R.string.shuffle)) }
             }

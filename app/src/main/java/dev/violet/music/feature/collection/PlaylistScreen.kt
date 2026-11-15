@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
@@ -38,6 +40,7 @@ import dev.violet.music.core.ui.trackCountLabel
 import kotlinx.coroutines.flow.Flow
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun PlaylistScreen(
     header: PlaylistUiState,
     entries: Flow<PagingData<PlaylistEntry>>,
@@ -69,13 +72,13 @@ fun PlaylistScreen(
             item { SectionTitle(playlist.name) }
             item { Text(trackCountLabel(playlist.trackCount)) }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { rename = true }) { Text(stringResource(R.string.rename)) }
                     TextButton(onClick = { delete = true }) { Text(stringResource(R.string.delete)) }
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onPlayAll(false) }, enabled = playlist.trackCount > 0) { Text(stringResource(R.string.play_all)) }
                     OutlinedButton(onClick = { onPlayAll(true) }, enabled = playlist.trackCount > 0) { Text(stringResource(R.string.shuffle)) }
                 }

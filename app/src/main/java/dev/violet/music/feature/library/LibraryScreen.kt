@@ -4,6 +4,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -42,6 +44,7 @@ import dev.violet.music.core.ui.collectionCountLabel
 import kotlinx.coroutines.flow.Flow
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun LibraryScreen(
     state: LibraryUiState,
     tracks: Flow<PagingData<Track>>,
@@ -84,13 +87,13 @@ fun LibraryScreen(
         }
         if (tab != 3) libraryNotices(state, onPermission, onSettings, onRefresh)
         if (tab == 0 || tab == 4) item("sort") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !state.recentSort, onClick = { onSort(false) }, label = { Text(stringResource(R.string.sort_title)) }, modifier = Modifier.heightIn(min = 48.dp))
                 FilterChip(selected = state.recentSort, onClick = { onSort(true) }, label = { Text(stringResource(R.string.recently_added)) }, modifier = Modifier.heightIn(min = 48.dp))
             }
         }
         if ((tab == 0 || tab == 4) && state.stats.trackCount > 0 && state.hasPermission) item("play-actions") {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onPlayAll(false, tab == 4) }, enabled = tab != 4 || favouriteItems.itemCount > 0) { Text(stringResource(R.string.play_all)) }
                 OutlinedButton(onClick = { onPlayAll(true, tab == 4) }, enabled = tab != 4 || favouriteItems.itemCount > 0) { Text(stringResource(R.string.shuffle)) }
             }

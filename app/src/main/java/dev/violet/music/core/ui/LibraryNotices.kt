@@ -27,15 +27,15 @@ fun LazyListScope.libraryNotices(
     onSettings: () -> Unit,
     onRefresh: () -> Unit,
 ) {
-    if (!state.hasPermission) item("permission") { PermissionCard(onPermission, onSettings) }
+    if (!state.hasPermission) item("notice:permission") { PermissionCard(onPermission, onSettings) }
     when (val scan = state.scanStatus) {
-        is ScanStatus.Running -> item("scan") {
+        is ScanStatus.Running -> item("notice:scan-status") {
             Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.scanning, trackCountLabel(scan.processed)), color = MaterialTheme.colorScheme.primary)
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
         }
-        is ScanStatus.Failed -> item("scan") {
+        is ScanStatus.Failed -> item("notice:scan-status") {
             val description = when (scan.reason) {
                 ScanFailure.PERMISSION -> R.string.scan_permission_error
                 ScanFailure.STORAGE_CHANGED -> R.string.scan_storage_error
@@ -48,7 +48,7 @@ fun LazyListScope.libraryNotices(
         }
         else -> Unit
     }
-    if (state.catalogueError) item("catalogue-error") {
+    if (state.catalogueError) item("notice:catalogue-error") {
         MessageCard(stringResource(R.string.library), stringResource(R.string.load_error))
     }
 }

@@ -80,7 +80,8 @@
     <string name="choose_track">Choose a track from your library to start listening.</string>
     <string name="stop_playback">Stop playback and clear queue</string>
     <string name="remove_from_queue">Remove from queue</string>
-    <string name="connection_error">The player connection was interrupted. Open the player again or choose a track to reconnect.</string>
+    <string name="connection_error">The player connection was interrupted. Try again or choose a track to reconnect.</string>
+    <string name="player_unavailable">Player disconnected</string>
     <string name="play_permission_error">Allow audio access before playing music.</string>
     <string name="unavailable_error">This audio file is unavailable. Reconnect storage and scan your library.</string>
     <string name="empty_queue_error">There are no available tracks in this selection.</string>

@@ -20,11 +20,14 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.room.Room
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.violet.music.core.database.MIGRATION_1_2
 import dev.violet.music.core.database.MusicDatabase
+import dev.violet.music.core.media.ScanStatus
+import dev.violet.music.feature.library.LibraryViewModel
 import java.io.FileInputStream
 import java.util.UUID
 import kotlinx.coroutines.delay
@@ -53,6 +56,13 @@ class CollectionUiTest {
         val database = Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db").addMigrations(MIGRATION_1_2).build()
         try {
             compose.activityRule.scenario.recreate()
+            lateinit var library: LibraryViewModel
+            compose.activityRule.scenario.onActivity { library = ViewModelProvider(it)[LibraryViewModel::class.java] }
+            withTimeout(15_000) { library.uiState.first { it.hasPermission && it.scanStatus !is ScanStatus.Running } }
+            // A file added after app entry needs the same explicit refresh as normal use.
+            compose.onNodeWithContentDescription("Settings").performClick()
+            compose.onNodeWithText("Scan device music").performClick()
+            compose.onNodeWithContentDescription("Go back").performClick()
             val asset = withTimeout(15_000) {
                 var found = database.libraryDao().findAsset(MediaStore.VOLUME_EXTERNAL_PRIMARY, ContentUris.parseId(uri))
                 while (found == null) { delay(100); found = database.libraryDao().findAsset(MediaStore.VOLUME_EXTERNAL_PRIMARY, ContentUris.parseId(uri)) }

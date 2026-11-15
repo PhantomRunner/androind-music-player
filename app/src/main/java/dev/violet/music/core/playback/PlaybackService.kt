@@ -38,8 +38,13 @@ class PlaybackService : MediaSessionService() {
             addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     currentMediaItem?.mediaId?.let(failedIds::add)
+                    if (currentTimeline.isEmpty || currentMediaItemIndex == C.INDEX_UNSET) {
+                        pause()
+                        return
+                    }
                     // Never loop forever over an unreadable queue, including repeat-all.
-                    var candidate = nextMediaItemIndex
+                    val recoveryRepeat = if (repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else repeatMode
+                    var candidate = currentTimeline.getNextWindowIndex(currentMediaItemIndex, recoveryRepeat, shuffleModeEnabled)
                     val checked = mutableSetOf<Int>()
                     while (candidate != C.INDEX_UNSET && checked.add(candidate)) {
                         if (getMediaItemAt(candidate).mediaId !in failedIds) {
@@ -48,14 +53,15 @@ class PlaybackService : MediaSessionService() {
                             play()
                             return
                         }
-                        candidate = currentTimeline.getNextWindowIndex(candidate, repeatMode, shuffleModeEnabled)
+                        candidate = currentTimeline.getNextWindowIndex(candidate, recoveryRepeat, shuffleModeEnabled)
                     }
                     pause()
                 }
             })
         }
         val activity = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         session = MediaSession.Builder(this, player)
             .setSessionActivity(activity)

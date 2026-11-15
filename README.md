@@ -1,6 +1,12 @@
 # Violet Music
 
-Native, offline Android music player with an original Midnight Violet interface. **M0–M3** provide Home, Search, Library, album/artist browsing, Settings, actual MediaStore indexing, real background playback, favourites and editable persistent playlists.
+**Offline MVP 0.3.0** — a native Android music player with an original Midnight Violet interface. Browse actual device music, search titles/artists/albums, listen in the background, manage the queue, save favourites and create/edit playlists.
+
+## Install the APK
+
+Use `app/build/outputs/apk/debug/app-debug.apk` on **Android 8.0 or newer**. Copy it to your phone, open it with the phone's file manager and allow that file manager to install the APK if Android asks. Open Violet Music, tap **Allow music access**, then scan your device music. No account or Internet connection is needed.
+
+This is an installable debug-signed MVP, not a store release. Install future builds over the existing app with the same signing key to keep its data; uninstalling removes Android app data, including playlists/favourites. No production signing credentials or publishing configuration are added.
 
 ## Open and run
 
@@ -29,7 +35,7 @@ The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. Downloading build 
 
 ## Permissions and catalogue behavior
 
-- API 33+: `READ_MEDIA_AUDIO`. API 26–32: `READ_EXTERNAL_STORAGE`, capped at API 32. No write, all-files, image, video or notification permission.
+- Runtime audio access: API 33+ `READ_MEDIA_AUDIO`; API 26–32 `READ_EXTERNAL_STORAGE`, capped at API 32. Foreground media-playback and wake-lock declarations support background audio. No write, all-files, image, video, Internet or notification runtime permission.
 - Permission is requested only through the user's action. Declining leaves navigation and the saved catalogue usable. Android settings is available when Android stops showing the permission dialog.
 - Access is rechecked on Activity resume, and a scan runs on first permitted entry per ViewModel lifetime or after access is regained. Navigation and recomposition do not start new scans. Further refreshes are manual.
 - Only MediaStore entries marked as music are indexed; there is no hidden duration cutoff. Files outside Android's music index, unsupported/corrupt files, or files excluded with `.nomedia` may not appear.
@@ -83,12 +89,13 @@ Versions are pinned in `gradle/libs.versions.toml`, using the available stable t
 | Espresso | 3.7.0 | Compose test input compatibility with current Android APIs |
 | Media3 ExoPlayer / Session | 1.8.1 | Single background player, media session and system controls |
 | Coroutines Guava | 1.9.0 | Cancellable Media3 future/Room coroutine integration |
+| Serialization BOM | 1.8.1 | Align existing app/test serialization runtime ABI for Room migration validation |
 
 Database v2 adds `favourites`, `playlists` and `playlist_entries` to the catalogue tables. Explicit migration `1 → 2` preserves all existing track/asset UUIDs, metadata and scan state. Both exported schemas are in `app/schemas`. Future changes must increment the version, export the new schema and supply a tested migration that preserves UUIDs and user data. There is no destructive migration fallback. [Architecture decisions](docs/architecture-decisions.md) explain milestone boundaries, scan completeness and deferred functionality.
 
 ## Verification
 
-Run the commands above for build, unit, lint and device verification. Tests cover scan completion/failure/cancellation/overlap, metadata fallback and escaped search; Room integration covers repeat imports, stable IDs, cross-volume identity, missing/restored items, interrupted/denied scan preservation, transactions, paging, search and database reopen. Compose tests exercise navigation and search editing. The MediaStore integration test creates one explicitly named, silent WAV fixture and removes only that fixture afterward; it needs API 29+ and grants the test app audio read permission. Run instrumented tests on an emulator or a device reserved for testing.
+Run the commands above for build, unit, lint and device verification. Unit tests cover scan completion/failure/cancellation/overlap, metadata fallback, escaped search and playlist-name validation. Instrumented tests cover actual MediaStore audio, Room imports/identity/search/paging/migration, persistent collections, concurrent appends, duplicate/reorder/remove behavior, real playback/background/system controls/reconnection and UI navigation/editing. Recovery tests delete only their own generated audio fixtures to verify missing-file skipping and bounded failure under repeat. Run instrumented tests on an emulator or a device reserved for testing: API 29+ media tests create labelled silent WAVs, grant the test app audio access and remove only their own fixture URIs.
 
 Validated on **2026-11-15**, using JDK 17, SDK 36 and a temporary read-only API 37 phone AVD:
 
@@ -100,12 +107,15 @@ ANDROID_SERIAL=emulator-5584 ./gradlew :app:assembleDebug :app:testDebugUnitTest
 | Check | Actual result |
 | --- | --- |
 | Debug APK | Built successfully |
-| JVM unit tests | 12 passed, 0 failures |
-| Instrumented tests | 12 passed, 0 failures: 9 Room/repository, 1 actual MediaStore, 2 Compose UI |
+| JVM unit tests | 14 passed, 0 failures |
+| Instrumented tests | 22 passed, 0 failures: 15 Room/repository/migration, 1 actual MediaStore, 3 Compose UI, 3 playback/recovery |
 | Android lint | Passed, no errors; warnings remain |
-| Manual emulator smoke check | Permission dialog, real generated MP3 indexing, title/artist search, saved catalogue after process restart and permission revocation verified |
+| Manual emulator smoke check | 10 labelled MP3s, 2 albums/artists, real player controls, 200% system font, saved catalogue after permission revocation and favourite persistence after force-stop/restart/reconciliation verified |
 | M0 gate | Build, launch and navigation verified on emulator |
 | M1 gate | Catalogue, stable identity, search and failure preservation verified with test media; physical-phone and removable-storage checks below remain pending |
+| M2 gate | Real service-owned playback, queue/seek/repeat/shuffle, background progress, system transports and controller reconnection verified |
+| M3 gate | Favourites, playlist CRUD/reordering/duplicates, persistence and additive migration verified |
+| M4 gate | Missing-source recovery, bounded failed repeat queue, permission audit, scaled-font layouts and full regression suite verified |
 
 No physical device was connected or modified. API 26–32 permission behavior is statically checked by lint, but was not exercised on an older Android runtime. Actual SD-card detach/reattach and a large personal library have not been measured. The AVD was started without saving snapshots, so verification did not persist changes to the original emulator image.
 
@@ -116,18 +126,18 @@ Manual checks on a physical phone remain useful:
 3. Repeat a scan and confirm there are no duplicates.
 4. Add/remove a test audio file outside Violet, then scan. A removed item should remain visibly unavailable.
 5. Unmount/remount a removable volume and scan. Interrupt a scan or revoke access midway; unseen entries must stay saved.
-6. Increase system font size, rotate, navigate with TalkBack, and check empty/error states. All interactive controls use at least 48dp touch targets.
+6. Play from an album/playlist; navigate, press Home and lock the screen. Check system transport controls, seek, repeat/shuffle and headset disconnection on your hardware.
+7. Favourite a track, add duplicates to a playlist, reorder/remove/rename, then restart the process. Confirm collections remain, including unavailable tracks. Delete a playlist and confirm audio/favourites remain.
+8. Increase system font size, rotate, navigate with TalkBack, and check empty/error states. Interactive controls use at least 48dp touch targets and labelled action rows wrap at large font sizes.
 
-## Playback and next milestone
+## Playback and collections
 
 The service owns the only ExoPlayer. UI controllers connect to that session; opening/closing screens or an Activity does not create a new player. The app uses audio focus, pauses on disconnected headphones and holds a playback wake lock. Media3 manages the foreground playback notification; no unrelated notification permission or network permission is requested. Queue metadata is resolved by app UUID in batches, using only local MediaStore assets. Missing/corrupt audio produces a recoverable error; the service advances past failed queue items without an infinite repeat loop. Queue/position are session state; full process death and reboot do not automatically restore/start playback.
 
-M2 verification added two instrumented tests: actual WAV playback, queue/seek/shuffle/repeat, background position advancement, platform media transport controls, reconnection, removal/stop and an unavailable UUID. The full M2 run passed 12 JVM tests and 14 instrumented tests, with build and lint passing. Bluetooth hardware and manufacturer-specific power management remain physical-device checks.
+The built APK permission audit confirms no `INTERNET` or `ACCESS_NETWORK_STATE` permission; Media3's transitive connectivity permission is removed for this local-only app. Lint retains pinned-dependency update notices and a generic exported-service warning: the Media3 session service is intentionally exported for system controllers, and `onGetSession` accepts only the app itself or trusted controllers. Incoming media URIs are resolved again from catalogue UUIDs.
 
-M3 adds paged playlists/favourites, 1–120 character names, duplicate-safe entry IDs, transactional appends/reordering/removal and explicit playlist-deletion confirmation. Playlist playback captures entry order and the selected entry, including duplicate track IDs. Edits do not rewrite an already playing queue; play again to capture the edited ordering. A–Z/recently-added sorting applies to catalogue/favourite playback. Collection errors preserve existing data and surface in the UI.
+Playlists/favourites are paged, with 1–120 character names, duplicate-safe entry IDs, transactional appends/reordering/removal and explicit playlist-deletion confirmation. Playlist playback captures entry order and the selected entry, including duplicate track IDs. Edits do not rewrite an already playing queue; play again to capture the edited ordering. A–Z/recently-added sorting applies to catalogue/favourite playback. Collection errors preserve existing data and surface in the UI.
 
-The M3 build, lint, 14 JVM tests and 21 instrumented tests passed. Added coverage includes migration `1 → 2`, concurrent entry appends, duplicate/reorder/remove behavior, persistence, scan failure preservation and the real UI create/add/favourite/rename/recreate/delete path. The serialization BOM is aligned to 1.8.1 so Room's migration bundle and app/test runtimes share the same ABI.
-
-Server APIs, authentication and sync remain outside the offline MVP; `serverId` is only a nullable storage field.
+Intentional MVP limits: queue/position are not restored after full process death/reboot; there is no automatic playback restart. Full Unicode case folding, incremental MediaStore generation synchronization, listening history and production publishing are deferred. Server APIs, authentication and sync remain outside this offline MVP; `serverId` is only a nullable storage field. Bluetooth hardware, manufacturer-specific power management and removable-storage behavior still need physical-device checks.
 
 Git uses `main`, with local milestone commits and no remote. Local starter requirement files are ignored to keep them out of commits.
