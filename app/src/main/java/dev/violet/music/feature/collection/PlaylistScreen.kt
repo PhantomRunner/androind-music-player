@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -107,9 +108,27 @@ fun PlaylistScreen(
             }
         else {
             item { SectionTitle(playlist.name) }
+            item("add-tracks") {
+                Button(
+                    onClick = onAddTracks,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Text(
+                        stringResource(
+                            if (playlist.trackCount == 0) R.string.select_tracks
+                            else R.string.add_tracks
+                        )
+                    )
+                }
+            }
             item { dev.violet.music.core.ui.Artwork(playlist.coverUri(), 160.dp) }
             item { PlaylistCoverEditor(playlist, onApplyCover, onRemoveCover, coverBusy) }
-            if (selection != null && collections != null && playlistId != null)
+            if (
+                playlist.trackCount > 0 &&
+                    selection != null &&
+                    collections != null &&
+                    playlistId != null
+            )
                 item("selection") {
                     dev.violet.music.feature.selection.SelectionToolbar(
                         selection,
@@ -118,6 +137,7 @@ fun PlaylistScreen(
                             playlistId = playlistId,
                         ),
                         collections,
+                        startLabel = R.string.select_playlist_tracks,
                     )
                 }
             item { Text(trackCountLabel(playlist.trackCount)) }
@@ -150,7 +170,6 @@ fun PlaylistScreen(
                     }
                 }
             }
-            item { TextButton(onClick = onAddTracks) { Text(stringResource(R.string.add_tracks)) } }
             if (items.itemCount == 0 && items.loadState.refresh !is LoadState.Loading)
                 item {
                     MessageCard(

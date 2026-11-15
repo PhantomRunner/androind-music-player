@@ -20,6 +20,7 @@ fun SelectionToolbar(
     source: SelectionSource,
     collections: CollectionViewModel,
     clearOnDispose: Boolean = true,
+    @androidx.annotation.StringRes startLabel: Int = R.string.select_tracks,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(source) { viewModel.source(source) }
@@ -31,7 +32,7 @@ fun SelectionToolbar(
     var creating by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf(false) }
     if (!state.active) {
-        TextButton(onClick = viewModel::begin) { Text(stringResource(R.string.select_tracks)) }
+        TextButton(onClick = viewModel::begin) { Text(stringResource(startLabel)) }
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

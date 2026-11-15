@@ -72,7 +72,7 @@ fun LibraryScreen(
     fun toggle(track: Track) {
         selection?.toggle(SelectedTrack(track.id, track.id, track.availability == "LOCAL"))
     }
-    DisposableEffect(Unit) { onDispose { selection?.cancel() } }
+    DisposableEffect(Unit) { onDispose { selection?.leave("library") } }
     LaunchedEffect(category) {
         if (category != LibraryCategory.ALL && category != LibraryCategory.TRACKS)
             selection?.cancel()
