@@ -12,7 +12,6 @@ import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.violet.music.MainActivity
 import dev.violet.music.TestAudio
-import dev.violet.music.core.database.MIGRATION_1_2
 import dev.violet.music.core.database.MusicDatabase
 import dev.violet.music.core.database.RoomCatalogueWriter
 import dev.violet.music.core.media.MediaStoreScanner
@@ -38,24 +37,47 @@ class PlaybackRecoveryTest {
     fun duplicateSelectionMissingMiddleAndAllMissingRepeatQueueRecoverSafely() = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        val permission = if (Build.VERSION.SDK_INT >= 33) "android.permission.READ_MEDIA_AUDIO" else "android.permission.READ_EXTERNAL_STORAGE"
-        instrumentation.uiAutomation.executeShellCommand("pm grant ${context.packageName} $permission").use {
-            FileInputStream(it.fileDescriptor).use { stream -> stream.readBytes() }
-        }
+        val permission =
+            if (Build.VERSION.SDK_INT >= 33) "android.permission.READ_MEDIA_AUDIO"
+            else "android.permission.READ_EXTERNAL_STORAGE"
+        instrumentation.uiAutomation
+            .executeShellCommand("pm grant ${context.packageName} $permission")
+            .use { FileInputStream(it.fileDescriptor).use { stream -> stream.readBytes() } }
         val fixtures = List(3) { TestAudio.create(context, seconds = 60) }
         val remaining = fixtures.toMutableSet()
-        val database = Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db").addMigrations(MIGRATION_1_2).build()
+        val database =
+            Room.databaseBuilder(context, MusicDatabase::class.java, "violet-catalogue.db")
+                .addMigrations(*dev.violet.music.core.database.ALL_MIGRATIONS)
+                .build()
         var scenario: ActivityScenario<MainActivity>? = null
         var facade: PlaybackController? = null
         try {
             val writer = RoomCatalogueWriter(database)
             MediaStoreScanner(context).scan { writer.importBatch(it, "recovery-fixture-scan") }
-            val ids = fixtures.map { requireNotNull(database.libraryDao().findAsset(MediaStore.VOLUME_EXTERNAL_PRIMARY, ContentUris.parseId(it))).trackId }
+            val ids =
+                fixtures.map {
+                    requireNotNull(
+                            database
+                                .libraryDao()
+                                .findAsset(
+                                    MediaStore.VOLUME_EXTERNAL_PRIMARY,
+                                    ContentUris.parseId(it),
+                                )
+                        )
+                        .trackId
+                }
             scenario = ActivityScenario.launch(MainActivity::class.java)
             lateinit var library: LibraryViewModel
             scenario.onActivity { library = ViewModelProvider(it)[LibraryViewModel::class.java] }
             withTimeout(20_000) { library.uiState.first { it.scanStatus is ScanStatus.Complete } }
-            val player = withContext(Dispatchers.Main) { Media3PlaybackController(context, LocalPlayableSourceResolver(context, database)).also { it.acquire() } }
+            val player =
+                withContext(Dispatchers.Main) {
+                    Media3PlaybackController(
+                            context,
+                            LocalPlayableSourceResolver(context, database),
+                        )
+                        .also { it.acquire() }
+                }
             facade = player
             withContext(Dispatchers.Main) { player.playIds(listOf(ids[0], ids[2], ids[0]), 2) }
             await(player) { it.isPlaying && it.currentIndex == 2 }
@@ -95,6 +117,7 @@ class PlaybackRecoveryTest {
             remaining.forEach { context.contentResolver.delete(it, null, null) }
         }
     }
+
     private suspend fun await(player: PlaybackController, predicate: (PlaybackUiState) -> Boolean) {
         withTimeout(20_000) { player.state.first(predicate) }
     }
