@@ -80,8 +80,8 @@ fun LibraryScreen(
         var previousQuery by rememberSaveable { mutableStateOf(state.libraryQuery) }
         LaunchedEffect(state.libraryQuery) {
             if (previousQuery != state.libraryQuery) {
-                scroll.scrollToItem(0)
                 previousQuery = state.libraryQuery
+                scroll.requestScrollToItem(0)
             }
         }
         LazyVerticalGrid(
